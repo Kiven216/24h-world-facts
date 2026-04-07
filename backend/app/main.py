@@ -5,20 +5,21 @@ from .api.admin import router as admin_router
 from .api.health import router as health_router
 from .api.home import router as home_router
 from .config import settings
+from .db import init_database
 
 
 app = FastAPI(title=settings.app_name)
 
+
+@app.on_event("startup")
+def startup() -> None:
+    # Keep staging setup simple by creating the SQLite file and tables on boot.
+    init_database()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://localhost:3000",
-        "http://192.168.3.2:5173",
-    ],
-    allow_origin_regex=r"^https?://(?:localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3})(?::\d+)?$",
+    allow_origins=settings.cors_allowed_origins,
+    allow_origin_regex=settings.cors_allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

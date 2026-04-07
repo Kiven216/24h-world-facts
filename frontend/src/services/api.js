@@ -1,16 +1,20 @@
 function resolveDefaultApiBaseUrl() {
   if (typeof window === 'undefined') {
-    return 'http://127.0.0.1:8000';
+    return 'http://127.0.0.1:8000/api';
   }
 
   const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:8000`;
+  return `${protocol}//${hostname}:8000/api`;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || resolveDefaultApiBaseUrl();
+function normalizeApiBaseUrl(rawUrl) {
+  return (rawUrl || '').replace(/\/+$/, '');
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || resolveDefaultApiBaseUrl());
 
 export async function fetchHomeData() {
-  const response = await fetch(`${API_BASE_URL}/api/home`);
+  const response = await fetch(`${API_BASE_URL}/home`);
 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
@@ -20,7 +24,7 @@ export async function fetchHomeData() {
 }
 
 export async function triggerBackendRefresh() {
-  const response = await fetch(`${API_BASE_URL}/api/admin/refresh`, {
+  const response = await fetch(`${API_BASE_URL}/admin/refresh`, {
     method: 'POST',
   });
 

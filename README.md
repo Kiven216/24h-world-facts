@@ -44,6 +44,7 @@ The system is still intentionally limited:
 - there is no cross-source deduplication yet
 - there is no clustering or LLM summarization yet
 - scoring and watchlist logic are still temporary heuristics
+- staging deployment is supported in a minimal Vercel + Render + SQLite-on-disk setup
 
 ## Directory Overview
 
@@ -146,6 +147,15 @@ npm run dev
 
 The frontend will be available at `http://127.0.0.1:5173`.
 
+The frontend supports an explicit API base override through `VITE_API_BASE_URL`.
+
+Examples:
+
+- Local:
+  - leave `VITE_API_BASE_URL` unset and the app will keep using `http://<current-hostname>:8000/api`
+- Staging:
+  - set `VITE_API_BASE_URL=https://<your-render-backend-domain>/api`
+
 ### 5. Mobile / LAN access
 
 For phone testing on the same local network:
@@ -162,6 +172,17 @@ http://192.168.3.2:5173
 
 The frontend now defaults to calling the backend on the same hostname at port `8000`, so a phone visiting `http://192.168.3.2:5173` will request `http://192.168.3.2:8000/api/home`.
 
+## Minimal Staging
+
+The project now supports a minimal staging deployment:
+
+- frontend on Vercel
+- backend on Render Web Service
+- SQLite on a Render persistent disk
+- manual refresh through `POST /api/admin/refresh`
+
+For staging steps and environment variables, see [staging-deploy.md](/Users/Kin%20Chueng/PyCharmMiscProject/24h_world_facts/docs/staging-deploy.md).
+
 ## API Endpoints
 
 - `GET /api/health` returns a simple health payload
@@ -172,6 +193,8 @@ The frontend now defaults to calling the backend on the same hostname at port `8
   - `by_topic`
   - `watchlist`
 - `POST /api/admin/refresh` runs one local BBC + NHK + NPR refresh cycle
+
+In staging, refresh is still intended to be manual rather than scheduled.
 
 If there are not enough real BBC / NHK / NPR-generated cards yet, `/api/home` supplements the response with `data/mock_cards.json`.
 
