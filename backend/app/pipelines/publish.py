@@ -1,4 +1,4 @@
-"""Publish filtered articles into final_cards with temporary scoring logic."""
+"""Publish filtered multi-source articles into final_cards with temporary scoring logic."""
 
 from datetime import datetime, timedelta, timezone
 import re
@@ -21,18 +21,51 @@ def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
     return False
 
 
+def _source_label(source: str) -> str:
+    return {"bbc": "BBC", "nhk": "NHK"}.get(source.lower(), source.upper())
+
+
 def _build_why_it_matters(title: str, topic: str, region: str) -> str:
     lowered_title = title.lower()
-    tech_terms = ("ai", "chip", "chips", "semiconductor", "platform", "cyber", "software", "telecom", "cloud", "data center", "data centres")
-    east_asia_terms = ("japan", "china", "taiwan", "korea", "tokyo", "beijing", "seoul", "taipei", "indo-pacific", "south china sea", "east china sea")
+    tech_terms = (
+        "ai",
+        "chip",
+        "chips",
+        "chipmaker",
+        "semiconductor",
+        "platform",
+        "cyber",
+        "software",
+        "telecom",
+        "cloud",
+        "data center",
+        "data centres",
+        "manufacturing",
+        "export controls",
+    )
+    east_asia_terms = (
+        "japan",
+        "japanese",
+        "china",
+        "taiwan",
+        "korea",
+        "tokyo",
+        "beijing",
+        "seoul",
+        "taipei",
+        "indo-pacific",
+        "south china sea",
+        "east china sea",
+        "taiwan strait",
+    )
 
     if _contains_any(lowered_title, ("trade", "tariff", "tariffs", "export", "exports", "supply chain", "manufacturing", "factory", "export controls")):
         return f"This could move trade flows, supply-chain planning, and production costs tied to {region}."
-    if _contains_any(lowered_title, ("inflation", "rates", "rate", "bond", "bonds", "market", "markets", "growth", "oil prices", "economy")):
+    if _contains_any(lowered_title, ("inflation", "rates", "rate", "bond", "bonds", "market", "markets", "growth", "oil prices", "economy", "yen")):
         return f"This may shift market expectations, financing conditions, and risk appetite connected to {region}."
-    if _contains_any(lowered_title, ("court", "ruling", "law", "regulator", "government", "minister", "supreme court", "election", "vote")):
+    if _contains_any(lowered_title, ("court", "ruling", "law", "regulator", "government", "minister", "cabinet", "parliament", "diet", "supreme court", "election", "vote")):
         return f"This signals where policy or legal direction may be heading, with follow-through implications beyond {region}."
-    if _contains_any(lowered_title, ("war", "attack", "military", "sanction", "sanctions", "security", "hostage", "strike", "missile", "troops", "ceasefire", "clash", "clashes", "killed", "rescue", "airman")):
+    if _contains_any(lowered_title, ("war", "attack", "military", "sanction", "sanctions", "security", "hostage", "strike", "missile", "troops", "ceasefire", "clash", "clashes", "killed", "rescue", "airman", "maritime", "territorial")):
         return f"This is a live geopolitical risk signal that could spill into security conditions, energy markets, and cross-border sentiment around {region}."
     if region == "Japan / East Asia" and _contains_any(lowered_title, tech_terms) and _contains_any(lowered_title, east_asia_terms):
         return "This matters for East Asia because technology competition, manufacturing links, and regional market positioning can all move off the same signal."
@@ -93,7 +126,7 @@ def run_publish() -> dict[str, int]:
         score = _score_article(row["topic_guess"], row["title"])
         cards.append(
             {
-                "event_id": f"bbc:{row['article_normalized_id']}",
+                "event_id": f"{row['source']}:{row['article_normalized_id']}",
                 "headline": row["title"],
                 "summary": row["excerpt"],
                 "why_it_matters": _build_why_it_matters(row["title"], row["topic_guess"], row["region_guess"]),
@@ -103,7 +136,7 @@ def run_publish() -> dict[str, int]:
                 "importance_score": score,
                 "published_at": row["published_at"],
                 "updated_at": row["filtered_at"],
-                "source_list": ["BBC"],
+                "source_list": [_source_label(row["source"])],
                 "is_top_story": score >= 8.6,
                 "is_watchlist": _should_watch(row["title"], row["topic_guess"], score),
             }

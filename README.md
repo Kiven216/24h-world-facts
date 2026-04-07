@@ -1,6 +1,6 @@
 # 24H World Facts
 
-24H World Facts is a local MVP for browsing important factual stories from the last 24 hours. The project now includes a first real-source path using BBC RSS, while still falling back to mock data when real cards are not yet sufficient for the homepage.
+24H World Facts is a local MVP for browsing important factual stories from the last 24 hours. The project now includes a two-source real ingest path using BBC RSS and NHK World English news, while still falling back to mock data when real cards are not yet sufficient for the homepage.
 
 ## Current Stage
 
@@ -11,18 +11,18 @@ This repository is currently a scaffold version:
 - SQLite schema for `final_cards` and `app_meta`
 - SQLite article pipeline tables: `article_raw`, `article_normalized`, `article_filtered`
 - Mock data scripts for local initialization
-- First real news source: BBC RSS (`world`, `business`, `technology`, `politics`)
+- Real news sources: BBC RSS (`world`, `business`, `technology`, `politics`) + NHK World English news (`world`, `japan`, `asia`, `biztch`)
 - Refresh chain: `ingest -> normalize -> filter -> publish`
 - Homepage content caps for top stories, watchlist, region, and topic blocks
 - First-pass heuristic fixes for region/topic classification
-- BBC single-source quality filtering now runs through `backend/app/rules/filters.py`
-- BBC single-source quality balancing now restores some tech / East Asia coverage without relaxing homepage caps
+- Multi-source quality filtering now runs through `backend/app/rules/filters.py`
+- Multi-source quality balancing now restores tech / East Asia coverage without relaxing homepage caps
 - `why_it_matters` now uses lightweight keyword-driven templates instead of only broad topic templates
 - Frontend-local FilterBar interactions for region, topic, confidence, and sort order
 - Score display kept on a 10-point UI scale
 - Placeholder source, pipeline, rule, and job modules for future rounds
 
-It still does **not** include complex clustering, event deduplication, embedding workflows, or LLM summarization.
+It still does **not** include complex clustering, cross-source event deduplication, embedding workflows, or LLM summarization.
 
 ## Directory Overview
 
@@ -71,7 +71,7 @@ python scripts/seed_mock_data.py
 
 The database file is created at `data/app.db`.
 
-### 3. Run one BBC refresh
+### 3. Run one real-data refresh
 
 Run the minimal real-source chain:
 
@@ -91,7 +91,7 @@ The refresh flow is:
 ingest -> normalize -> filter -> publish
 ```
 
-`/api/home` now prefers real BBC-generated `final_cards`. If there are too few real cards for the homepage, it supplements with mock cards so the UI does not go blank.
+`/api/home` now prefers real BBC + NHK-generated `final_cards`. If there are too few real cards for the homepage, it supplements with mock cards so the UI does not go blank.
 
 Homepage sections are intentionally capped so the default page stays shorter and more readable, especially on mobile:
 
@@ -104,7 +104,7 @@ Homepage sections are intentionally capped so the default page stays shorter and
 
 The filter layer now leans toward hard-news retention and is stricter about excluding obituary-like stories, entertainment-like items, soft features, and other low-value world stories that do not fit the briefing product.
 
-The current balance is intentionally layered: top stories and watchlist remain strict, while qualified technology, industry, trade, and East Asia stories have a better chance of surviving into By Topic / By Region buckets.
+The current balance is intentionally layered: top stories and watchlist remain strict, while qualified technology, industry, trade, and East Asia stories have a better chance of surviving into By Topic / By Region buckets. NHK is mainly used to strengthen Japan / East Asia coverage without loosening the homepage caps.
 
 `why_it_matters` has also been upgraded from broad topic templates to lightweight keyword-driven templates so the card copy is more specific without introducing LLM dependencies.
 
@@ -150,13 +150,13 @@ The frontend now defaults to calling the backend on the same hostname at port `8
   - `by_region`
   - `by_topic`
   - `watchlist`
-- `POST /api/admin/refresh` runs one local BBC refresh cycle
+- `POST /api/admin/refresh` runs one local BBC + NHK refresh cycle
 
-If there are not enough real BBC-generated cards yet, `/api/home` supplements the response with `data/mock_cards.json`.
+If there are not enough real BBC / NHK-generated cards yet, `/api/home` supplements the response with `data/mock_cards.json`.
 
 ## Not Implemented Yet
 
-- Additional RSS or publisher integrations beyond BBC
+- Additional RSS or publisher integrations beyond BBC and NHK
 - Refresh jobs and background scheduling
 - Story clustering and event deduplication
 - Production-grade scoring and confidence logic

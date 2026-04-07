@@ -1,4 +1,4 @@
-"""Quality filters for keeping BBC single-source output closer to hard-news briefing content."""
+"""Quality filters for keeping multi-source output closer to hard-news briefing content."""
 
 from datetime import datetime, timedelta, timezone
 import re
@@ -13,6 +13,7 @@ SUPPORTED_TOPICS = {
 
 POLICY_TERMS = (
     "government",
+    "cabinet",
     "minister",
     "president",
     "prime minister",
@@ -22,6 +23,7 @@ POLICY_TERMS = (
     "vote",
     "policy",
     "parliament",
+    "diet",
     "congress",
     "senate",
     "deportees",
@@ -50,6 +52,9 @@ ECONOMY_TERMS = (
     "oil prices",
     "growth",
     "exports",
+    "yen",
+    "manufacturing",
+    "supply chain",
 )
 
 TECH_INDUSTRY_TERMS = (
@@ -58,7 +63,10 @@ TECH_INDUSTRY_TERMS = (
     "ai",
     "chip",
     "chips",
+    "chipmaker",
+    "chipmakers",
     "semiconductor",
+    "semiconductors",
     "software",
     "platform",
     "industry",
@@ -73,6 +81,7 @@ TECH_INDUSTRY_TERMS = (
     "data center",
     "data centres",
     "supply chain",
+    "supply chains",
     "export controls",
 )
 
@@ -90,6 +99,8 @@ SECURITY_TERMS = (
     "missiles",
     "troops",
     "conflict",
+    "maritime",
+    "territorial",
     "iran",
     "gaza",
     "ukraine",
@@ -100,6 +111,7 @@ SECURITY_TERMS = (
 
 EAST_ASIA_TERMS = (
     "japan",
+    "japanese",
     "china",
     "taiwan",
     "korea",
@@ -110,6 +122,7 @@ EAST_ASIA_TERMS = (
     "south china sea",
     "east china sea",
     "indo-pacific",
+    "taiwan strait",
 )
 
 TRADE_SUPPLY_CHAIN_TERMS = (
@@ -274,6 +287,8 @@ def has_hard_news_exception(title: str, excerpt: str, topic: str, region: str | 
     if topic == "Conflict / Security":
         return True
     if topic == "Business / Tech / Industry" and _contains_any(text, TECH_INDUSTRY_TERMS + TRADE_SUPPLY_CHAIN_TERMS):
+        return True
+    if topic == "Economy / Markets" and _contains_any(text, ECONOMY_TERMS + TRADE_SUPPLY_CHAIN_TERMS):
         return True
     if region == "Japan / East Asia" and _contains_any(text, EAST_ASIA_TERMS + TRADE_SUPPLY_CHAIN_TERMS + SECURITY_TERMS + POLICY_TERMS):
         return True

@@ -1,4 +1,4 @@
-"""Run the first real-source refresh chain in sequence."""
+"""Run the current multi-source refresh chain in sequence."""
 
 from ..pipelines.filter import run_filter
 from ..pipelines.ingest import run_ingest

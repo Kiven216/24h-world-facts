@@ -13,10 +13,11 @@ CREATE TABLE IF NOT EXISTS article_raw (
     source TEXT NOT NULL,
     feed_name TEXT NOT NULL,
     title_raw TEXT NOT NULL,
-    url TEXT NOT NULL UNIQUE,
+    url TEXT NOT NULL,
     published_at_raw TEXT,
     excerpt_raw TEXT,
-    fetched_at TEXT NOT NULL
+    fetched_at TEXT NOT NULL,
+    UNIQUE(source, url)
 );
 """
 
@@ -82,6 +83,9 @@ CREATE TABLE IF NOT EXISTS app_meta (
 """
 
 
+REAL_EVENT_PREFIXES = ("bbc:%", "nhk:%")
+
+
 @contextmanager
 def get_connection():
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -97,6 +101,7 @@ def get_connection():
 def init_database() -> None:
     with get_connection() as connection:
         connection.execute(ARTICLE_RAW_SCHEMA)
+        connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_article_raw_source_url ON article_raw(source, url)")
         connection.execute(ARTICLE_NORMALIZED_SCHEMA)
         connection.execute(ARTICLE_FILTERED_SCHEMA)
         connection.execute(FINAL_CARDS_SCHEMA)
@@ -118,11 +123,11 @@ def fetch_real_final_cards() -> list[sqlite3.Row]:
     query = """
     SELECT *
     FROM final_cards
-    WHERE event_id LIKE 'bbc:%'
+    WHERE event_id LIKE ? OR event_id LIKE ?
     ORDER BY importance_score DESC, published_at DESC, id ASC
     """
     with get_connection() as connection:
-        rows = connection.execute(query).fetchall()
+        rows = connection.execute(query, REAL_EVENT_PREFIXES).fetchall()
     return rows
 
 
@@ -204,7 +209,10 @@ def replace_real_final_cards(cards: Iterable[dict]) -> None:
     """
     prepared_rows = _prepare_final_card_rows(cards)
     with get_connection() as connection:
-        connection.execute("DELETE FROM final_cards WHERE event_id LIKE 'bbc:%'")
+        connection.execute(
+            "DELETE FROM final_cards WHERE event_id LIKE ? OR event_id LIKE ?",
+            REAL_EVENT_PREFIXES,
+        )
         if prepared_rows:
             connection.executemany(insert_sql, prepared_rows)
 
@@ -224,7 +232,7 @@ def replace_app_meta(meta: dict) -> None:
 
 def insert_article_raw(rows: Iterable[dict]) -> int:
     query = """
-    INSERT OR IGNORE INTO article_raw (
+    INSERT INTO article_raw (
         source,
         feed_name,
         title_raw,
@@ -232,7 +240,13 @@ def insert_article_raw(rows: Iterable[dict]) -> int:
         published_at_raw,
         excerpt_raw,
         fetched_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    )
+    SELECT ?, ?, ?, ?, ?, ?, ?
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM article_raw
+        WHERE source = ? AND url = ?
+    )
     """
     inserted = 0
     with get_connection() as connection:
@@ -247,6 +261,8 @@ def insert_article_raw(rows: Iterable[dict]) -> int:
                     row.get("published_at_raw"),
                     row.get("excerpt_raw"),
                     row["fetched_at"],
+                    row["source"],
+                    row["url"],
                 ),
             )
             inserted += int(cursor.rowcount > 0)

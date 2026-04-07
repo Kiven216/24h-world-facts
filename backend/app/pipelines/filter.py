@@ -1,4 +1,4 @@
-"""Apply reusable quality filters to normalized BBC articles before publish."""
+"""Apply reusable quality filters to normalized multi-source articles before publish."""
 
 from datetime import datetime, timezone
 
