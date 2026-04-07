@@ -1,6 +1,6 @@
 # 24H World Facts
 
-24H World Facts is a local MVP for browsing important factual stories from the last 24 hours. This first round is intentionally limited to a scaffolded backend, a scaffolded frontend, a minimal SQLite data layer, and a homepage fed by mock data.
+24H World Facts is a local MVP for browsing important factual stories from the last 24 hours. The project now includes a first real-source path using BBC RSS, while still falling back to mock data when real cards are not yet sufficient for the homepage.
 
 ## Current Stage
 
@@ -9,12 +9,17 @@ This repository is currently a scaffold version:
 - FastAPI backend with `/api/health` and `/api/home`
 - React + Vite frontend homepage with basic responsive layout
 - SQLite schema for `final_cards` and `app_meta`
+- SQLite article pipeline tables: `article_raw`, `article_normalized`, `article_filtered`
 - Mock data scripts for local initialization
+- First real news source: BBC RSS (`world`, `business`, `technology`, `politics`)
+- Refresh chain: `ingest -> normalize -> filter -> publish`
+- Homepage content caps for top stories, watchlist, region, and topic blocks
+- First-pass heuristic fixes for region/topic classification
 - Frontend-local FilterBar interactions for region, topic, confidence, and sort order
 - Score display kept on a 10-point UI scale
 - Placeholder source, pipeline, rule, and job modules for future rounds
 
-It does **not** yet connect to real news sources, clustering, scoring pipelines, or LLM summarization.
+It still does **not** include complex clustering, event deduplication, embedding workflows, or LLM summarization.
 
 ## Directory Overview
 
@@ -34,6 +39,8 @@ It does **not** yet connect to real news sources, clustering, scoring pipelines,
 From the project root:
 
 ```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r backend/requirements.txt
 ```
 
@@ -61,7 +68,38 @@ python scripts/seed_mock_data.py
 
 The database file is created at `data/app.db`.
 
-### 3. Frontend setup
+### 3. Run one BBC refresh
+
+Run the minimal real-source chain:
+
+```bash
+python scripts/run_refresh.py
+```
+
+Or call the local dev endpoint:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/admin/refresh
+```
+
+The refresh flow is:
+
+```text
+ingest -> normalize -> filter -> publish
+```
+
+`/api/home` now prefers real BBC-generated `final_cards`. If there are too few real cards for the homepage, it supplements with mock cards so the UI does not go blank.
+
+Homepage sections are intentionally capped so the default page stays shorter and more readable, especially on mobile:
+
+- Top Stories: up to 8
+- Watchlist: up to 4
+- By Region: up to 3 per bucket
+- By Topic: up to 3 per bucket
+
+`region` and `topic` are still heuristic guesses, but the first-pass keyword rules have been tightened to reduce obvious misclassification.
+
+### 4. Frontend setup
 
 Install frontend dependencies:
 
@@ -78,7 +116,7 @@ npm run dev
 
 The frontend will be available at `http://127.0.0.1:5173`.
 
-### 4. Mobile / LAN access
+### 5. Mobile / LAN access
 
 For phone testing on the same local network:
 
@@ -103,15 +141,16 @@ The frontend now defaults to calling the backend on the same hostname at port `8
   - `by_region`
   - `by_topic`
   - `watchlist`
+- `POST /api/admin/refresh` runs one local BBC refresh cycle
 
-If SQLite has no rows yet, `/api/home` falls back to `data/mock_cards.json`.
+If there are not enough real BBC-generated cards yet, `/api/home` supplements the response with `data/mock_cards.json`.
 
 ## Not Implemented Yet
 
-- Real RSS or publisher integrations
+- Additional RSS or publisher integrations beyond BBC
 - Refresh jobs and background scheduling
 - Story clustering and event deduplication
-- Weighted scoring and confidence logic
+- Production-grade scoring and confidence logic
 - LLM summaries
 - Search, login, favorites, personalization
 - Backend-driven filtering behavior in the frontend

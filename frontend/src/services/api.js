@@ -18,3 +18,15 @@ export async function fetchHomeData() {
 
   return response.json();
 }
+
+export async function triggerBackendRefresh() {
+  const response = await fetch(`${API_BASE_URL}/api/admin/refresh`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Refresh failed with status ${response.status}`);
+  }
+
+  return response.json();
+}

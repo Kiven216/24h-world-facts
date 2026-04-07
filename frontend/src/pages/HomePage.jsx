@@ -5,7 +5,7 @@ import HeaderBar from '../components/HeaderBar';
 import RefreshButton from '../components/RefreshButton';
 import SectionBlock from '../components/SectionBlock';
 import StoryCard from '../components/StoryCard';
-import { fetchHomeData } from '../services/api';
+import { fetchHomeData, triggerBackendRefresh } from '../services/api';
 import { mockHomeData } from '../mock/mockHomeData';
 
 const REGION_OPTIONS = ['All', 'North America', 'Europe', 'Japan / East Asia', 'Global Markets'];
@@ -104,6 +104,8 @@ function HomePage() {
   };
 
   const loadHomeData = async ({ isManualRefresh = false } = {}) => {
+    let refreshError = '';
+
     if (isManualRefresh) {
       setRefreshing(true);
     } else {
@@ -111,9 +113,17 @@ function HomePage() {
     }
 
     try {
+      if (isManualRefresh) {
+        try {
+          await triggerBackendRefresh();
+        } catch (requestError) {
+          refreshError = requestError.message || 'Unable to refresh from BBC.';
+        }
+      }
+
       const payload = await fetchHomeData();
       setHomeData(payload);
-      setError('');
+      setError(refreshError);
     } catch (requestError) {
       setError(requestError.message || 'Unable to load homepage data.');
     } finally {
@@ -146,7 +156,7 @@ function HomePage() {
           <RefreshButton loading={refreshing} onRefresh={() => loadHomeData({ isManualRefresh: true })} />
         </div>
 
-        {error ? <div className="status-banner">Backend request failed. Showing placeholder data. {error}</div> : null}
+        {error ? <div className="status-banner">Latest refresh notice: {error}</div> : null}
         {loading ? <div className="status-banner">Loading latest homepage data...</div> : null}
 
         <SectionBlock title="Top Stories" subtitle="Most important items for the current 24-hour window.">
