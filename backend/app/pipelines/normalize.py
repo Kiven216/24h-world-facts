@@ -20,11 +20,41 @@ TRACKING_QUERY_KEYS = {
     "ocid",
 }
 
-MARKET_KEYWORDS = ("market", "inflation", "tariff", "trade", "economy", "stocks", "bank", "growth", "exports")
+MARKET_KEYWORDS = ("market", "inflation", "tariff", "trade", "economy", "stocks", "bank", "growth", "exports", "bond", "rates")
 SECURITY_KEYWORDS = ("war", "attack", "military", "security", "missile", "troops", "sanction", "ceasefire", "strike")
-TECH_KEYWORDS = ("technology", "tech", "ai", "chip", "chips", "semiconductor", "platform", "software", "digital")
+TECH_KEYWORDS = (
+    "technology",
+    "tech",
+    "ai",
+    "chip",
+    "chips",
+    "semiconductor",
+    "platform",
+    "software",
+    "digital",
+    "cyber",
+    "telecom",
+    "cloud",
+    "data center",
+    "data centres",
+    "supply chain",
+    "export controls",
+)
 EUROPE_KEYWORDS = ("europe", "britain", "france", "germany", "ukraine", "russia", "brussels", "london", "paris", "berlin")
-EAST_ASIA_KEYWORDS = ("japan", "china", "taiwan", "korea", "tokyo", "beijing", "seoul", "hong kong")
+EAST_ASIA_KEYWORDS = (
+    "japan",
+    "china",
+    "taiwan",
+    "korea",
+    "tokyo",
+    "beijing",
+    "seoul",
+    "hong kong",
+    "taipei",
+    "south china sea",
+    "east china sea",
+    "indo-pacific",
+)
 NORTH_AMERICA_KEYWORDS = ("united states", "u.s.", "usa", "canada", "mexico", "washington", "white house", "trump", "american")
 
 
@@ -78,10 +108,10 @@ def _guess_topic(feed_name: str, text_blob: str) -> str:
         return "Business / Tech / Industry"
     if _contains_keyword(lowered_blob, SECURITY_KEYWORDS):
         return "Conflict / Security"
-    if _contains_keyword(lowered_blob, MARKET_KEYWORDS):
-        return "Economy / Markets"
     if _contains_keyword(lowered_blob, TECH_KEYWORDS):
         return "Business / Tech / Industry"
+    if _contains_keyword(lowered_blob, MARKET_KEYWORDS):
+        return "Economy / Markets"
     return "Policy / Politics"
 
 

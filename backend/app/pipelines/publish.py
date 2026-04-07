@@ -1,6 +1,7 @@
 """Publish filtered articles into final_cards with temporary scoring logic."""
 
 from datetime import datetime, timedelta, timezone
+import re
 
 from ..db import build_app_meta, fetch_publish_candidates, replace_app_meta, replace_real_final_cards
 
@@ -9,7 +10,36 @@ def _parse_iso_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def _build_why_it_matters(topic: str, region: str) -> str:
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    for keyword in keywords:
+        if re.search(r"[^\w\s]", keyword):
+            if keyword in text:
+                return True
+            continue
+        if re.search(rf"\b{re.escape(keyword)}\b", text):
+            return True
+    return False
+
+
+def _build_why_it_matters(title: str, topic: str, region: str) -> str:
+    lowered_title = title.lower()
+    tech_terms = ("ai", "chip", "chips", "semiconductor", "platform", "cyber", "software", "telecom", "cloud", "data center", "data centres")
+    east_asia_terms = ("japan", "china", "taiwan", "korea", "tokyo", "beijing", "seoul", "taipei", "indo-pacific", "south china sea", "east china sea")
+
+    if _contains_any(lowered_title, ("trade", "tariff", "tariffs", "export", "exports", "supply chain", "manufacturing", "factory", "export controls")):
+        return f"This could move trade flows, supply-chain planning, and production costs tied to {region}."
+    if _contains_any(lowered_title, ("inflation", "rates", "rate", "bond", "bonds", "market", "markets", "growth", "oil prices", "economy")):
+        return f"This may shift market expectations, financing conditions, and risk appetite connected to {region}."
+    if _contains_any(lowered_title, ("court", "ruling", "law", "regulator", "government", "minister", "supreme court", "election", "vote")):
+        return f"This signals where policy or legal direction may be heading, with follow-through implications beyond {region}."
+    if _contains_any(lowered_title, ("war", "attack", "military", "sanction", "sanctions", "security", "hostage", "strike", "missile", "troops", "ceasefire", "clash", "clashes", "killed", "rescue", "airman")):
+        return f"This is a live geopolitical risk signal that could spill into security conditions, energy markets, and cross-border sentiment around {region}."
+    if region == "Japan / East Asia" and _contains_any(lowered_title, tech_terms) and _contains_any(lowered_title, east_asia_terms):
+        return "This matters for East Asia because technology competition, manufacturing links, and regional market positioning can all move off the same signal."
+    if region == "Japan / East Asia" and _contains_any(lowered_title, east_asia_terms):
+        return "This matters for East Asia because regional trade, manufacturing links, and geopolitical positioning can shift together quickly."
+    if _contains_any(lowered_title, tech_terms):
+        return f"This is relevant to technology competition, investment priorities, and supply-chain positioning linked to {region}."
     if topic == "Policy / Politics":
         return f"This could shape near-term policy signals and international positioning around {region}."
     if topic == "Economy / Markets":
@@ -66,7 +96,7 @@ def run_publish() -> dict[str, int]:
                 "event_id": f"bbc:{row['article_normalized_id']}",
                 "headline": row["title"],
                 "summary": row["excerpt"],
-                "why_it_matters": _build_why_it_matters(row["topic_guess"], row["region_guess"]),
+                "why_it_matters": _build_why_it_matters(row["title"], row["topic_guess"], row["region_guess"]),
                 "region": row["region_guess"],
                 "topic": row["topic_guess"],
                 "status": _derive_status(row["title"]),

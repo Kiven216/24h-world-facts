@@ -257,8 +257,6 @@ def fetch_raw_articles_without_normalized() -> list[sqlite3.Row]:
     query = """
     SELECT ar.*
     FROM article_raw ar
-    LEFT JOIN article_normalized an ON an.article_raw_id = ar.id
-    WHERE an.id IS NULL
     ORDER BY ar.id ASC
     """
     with get_connection() as connection:
@@ -315,8 +313,6 @@ def fetch_normalized_articles_without_filter() -> list[sqlite3.Row]:
     SELECT an.*, ar.feed_name
     FROM article_normalized an
     JOIN article_raw ar ON ar.id = an.article_raw_id
-    LEFT JOIN article_filtered af ON af.article_normalized_id = an.id
-    WHERE af.id IS NULL
     ORDER BY an.id ASC
     """
     with get_connection() as connection:

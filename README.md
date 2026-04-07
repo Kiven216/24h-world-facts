@@ -15,6 +15,9 @@ This repository is currently a scaffold version:
 - Refresh chain: `ingest -> normalize -> filter -> publish`
 - Homepage content caps for top stories, watchlist, region, and topic blocks
 - First-pass heuristic fixes for region/topic classification
+- BBC single-source quality filtering now runs through `backend/app/rules/filters.py`
+- BBC single-source quality balancing now restores some tech / East Asia coverage without relaxing homepage caps
+- `why_it_matters` now uses lightweight keyword-driven templates instead of only broad topic templates
 - Frontend-local FilterBar interactions for region, topic, confidence, and sort order
 - Score display kept on a 10-point UI scale
 - Placeholder source, pipeline, rule, and job modules for future rounds
@@ -98,6 +101,12 @@ Homepage sections are intentionally capped so the default page stays shorter and
 - By Topic: up to 3 per bucket
 
 `region` and `topic` are still heuristic guesses, but the first-pass keyword rules have been tightened to reduce obvious misclassification.
+
+The filter layer now leans toward hard-news retention and is stricter about excluding obituary-like stories, entertainment-like items, soft features, and other low-value world stories that do not fit the briefing product.
+
+The current balance is intentionally layered: top stories and watchlist remain strict, while qualified technology, industry, trade, and East Asia stories have a better chance of surviving into By Topic / By Region buckets.
+
+`why_it_matters` has also been upgraded from broad topic templates to lightweight keyword-driven templates so the card copy is more specific without introducing LLM dependencies.
 
 ### 4. Frontend setup
 
