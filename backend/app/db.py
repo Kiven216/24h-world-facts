@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS app_meta (
 """
 
 
-REAL_EVENT_PREFIXES = ("bbc:%", "nhk:%")
+REAL_EVENT_PREFIXES = ("bbc:%", "nhk:%", "npr:%")
 
 
 @contextmanager
@@ -123,7 +123,7 @@ def fetch_real_final_cards() -> list[sqlite3.Row]:
     query = """
     SELECT *
     FROM final_cards
-    WHERE event_id LIKE ? OR event_id LIKE ?
+    WHERE event_id LIKE ? OR event_id LIKE ? OR event_id LIKE ?
     ORDER BY importance_score DESC, published_at DESC, id ASC
     """
     with get_connection() as connection:
@@ -210,7 +210,7 @@ def replace_real_final_cards(cards: Iterable[dict]) -> None:
     prepared_rows = _prepare_final_card_rows(cards)
     with get_connection() as connection:
         connection.execute(
-            "DELETE FROM final_cards WHERE event_id LIKE ? OR event_id LIKE ?",
+            "DELETE FROM final_cards WHERE event_id LIKE ? OR event_id LIKE ? OR event_id LIKE ?",
             REAL_EVENT_PREFIXES,
         )
         if prepared_rows:

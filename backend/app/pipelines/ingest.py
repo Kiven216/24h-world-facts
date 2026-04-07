@@ -5,6 +5,7 @@ from dataclasses import asdict
 from ..db import init_database, insert_article_raw
 from ..sources.bbc import BBCSource
 from ..sources.nhk import NHKSource
+from ..sources.npr import NPRSource
 
 
 def run_ingest() -> dict[str, object]:
@@ -13,7 +14,7 @@ def run_ingest() -> dict[str, object]:
     inserted_count = 0
     source_stats: dict[str, dict[str, int]] = {}
 
-    for source in (BBCSource(), NHKSource()):
+    for source in (BBCSource(), NHKSource(), NPRSource()):
         items = source.fetch_items()
         inserted = insert_article_raw([asdict(item) for item in items])
         fetched_count += len(items)

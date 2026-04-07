@@ -1,28 +1,49 @@
 # 24H World Facts
 
-24H World Facts is a local MVP for browsing important factual stories from the last 24 hours. The project now includes a two-source real ingest path using BBC RSS and NHK World English news, while still falling back to mock data when real cards are not yet sufficient for the homepage.
+24H World Facts is a local v1 MVP for browsing important factual stories from the last 24 hours.
+
+The project now includes a usable multi-source real ingest path using BBC RSS, NHK World English news, and NPR RSS, while still falling back to mock data when real cards are not yet sufficient for the homepage.
+
+It is best understood at this stage as:
+- a local multi-source factual briefing prototype,
+- a compact homepage product focused on hard-news filtering and homepage curation,
+- and an article-level pipeline that has not yet evolved into true event-level aggregation.
 
 ## Current Stage
 
-This repository is currently a scaffold version:
+This repository is currently a **local v1 prototype**, not just a scaffold.
 
-- FastAPI backend with `/api/health` and `/api/home`
-- React + Vite frontend homepage with basic responsive layout
-- SQLite schema for `final_cards` and `app_meta`
-- SQLite article pipeline tables: `article_raw`, `article_normalized`, `article_filtered`
-- Mock data scripts for local initialization
-- Real news sources: BBC RSS (`world`, `business`, `technology`, `politics`) + NHK World English news (`world`, `japan`, `asia`, `biztch`)
-- Refresh chain: `ingest -> normalize -> filter -> publish`
-- Homepage content caps for top stories, watchlist, region, and topic blocks
-- First-pass heuristic fixes for region/topic classification
-- Multi-source quality filtering now runs through `backend/app/rules/filters.py`
-- Multi-source quality balancing now restores tech / East Asia coverage without relaxing homepage caps
-- `why_it_matters` now uses lightweight keyword-driven templates instead of only broad topic templates
-- Frontend-local FilterBar interactions for region, topic, confidence, and sort order
-- Score display kept on a 10-point UI scale
-- Placeholder source, pipeline, rule, and job modules for future rounds
+It already includes:
+- FastAPI backend with `/api/health`, `/api/home`, and `/api/admin/refresh`
+- React + Vite frontend homepage
+- SQLite schema for:
+  - `article_raw`
+  - `article_normalized`
+  - `article_filtered`
+  - `final_cards`
+  - `app_meta`
+- Real news sources:
+  - BBC RSS (`world`, `business`, `technology`, `politics`)
+  - NHK World English (`world`, `japan`, `asia`, `biztch`)
+  - NPR RSS (`news`, `politics`, `business`, `technology`) under observation after minimum validation
+- Refresh chain:
+  - `ingest -> normalize -> filter -> publish`
+- Homepage caps for:
+  - top stories
+  - watchlist
+  - by-region buckets
+  - by-topic buckets
+- First-pass heuristic topic / region classification
+- A real quality-filtering layer biased toward hard-news retention
+- Lightweight keyword-driven `why_it_matters`
+- Mock fallback when real cards are still insufficient
+- NPR has completed minimum integration validation and is now in observation phase as the newly validated third-source candidate
 
-It still does **not** include complex clustering, cross-source event deduplication, embedding workflows, or LLM summarization.
+The system is still intentionally limited:
+- publish is currently article-level, not true event-level
+- there is no cross-source deduplication yet
+- there is no clustering or LLM summarization yet
+- scoring and watchlist logic are still temporary heuristics
 
 ## Directory Overview
 
@@ -91,7 +112,7 @@ The refresh flow is:
 ingest -> normalize -> filter -> publish
 ```
 
-`/api/home` now prefers real BBC + NHK-generated `final_cards`. If there are too few real cards for the homepage, it supplements with mock cards so the UI does not go blank.
+`/api/home` now prefers real BBC + NHK + NPR-generated `final_cards`. If there are too few real cards for the homepage, it supplements with mock cards so the UI does not go blank.
 
 Homepage sections are intentionally capped so the default page stays shorter and more readable, especially on mobile:
 
@@ -150,13 +171,13 @@ The frontend now defaults to calling the backend on the same hostname at port `8
   - `by_region`
   - `by_topic`
   - `watchlist`
-- `POST /api/admin/refresh` runs one local BBC + NHK refresh cycle
+- `POST /api/admin/refresh` runs one local BBC + NHK + NPR refresh cycle
 
-If there are not enough real BBC / NHK-generated cards yet, `/api/home` supplements the response with `data/mock_cards.json`.
+If there are not enough real BBC / NHK / NPR-generated cards yet, `/api/home` supplements the response with `data/mock_cards.json`.
 
 ## Not Implemented Yet
 
-- Additional RSS or publisher integrations beyond BBC and NHK
+- Additional RSS or publisher integrations beyond BBC, NHK, and the observed NPR validation source
 - Refresh jobs and background scheduling
 - Story clustering and event deduplication
 - Production-grade scoring and confidence logic
