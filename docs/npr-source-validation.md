@@ -63,25 +63,29 @@ At the current stage, this overlap is acceptable because the product still does 
 
 ## Current Recommendation
 
-NPR appears viable for a minimal third-source validation because it offers public RSS endpoints that fit the existing adapter model.
+NPR has passed the minimum validation window and the initial observation phase.
 
-However, it should be kept in an observation phase first, because:
+It should now be retained as the stable third source because:
 
-- `news` is broad and may introduce a higher share of domestic U.S. general-interest stories.
-- NPR is more likely than NHK to overlap with BBC on politics, business, and technology headlines.
-- The current pipeline still treats one article as one final card, so duplicate event coverage can accumulate across sources.
+- the public RSS integration path has remained simple and usable
+- homepage visibility has been confirmed consistently
+- North America / U.S. complement value is real
+- no material low-fit or soft-story drift was observed during the observation window
+
+The main caveat remains that NPR is a complement source, not necessarily the fastest-refreshing source in the stack.
 
 ## Validation Outcome
 
-If the refresh pipeline continues to ingest and filter NPR cleanly during manual observation, NPR is a reasonable candidate to keep as the formal third source.
+The refresh pipeline ingests and filters NPR cleanly enough to retain it as the formal stable third source.
 
 Current status:
 
-`Completed minimal integration validation; ready for manual observation.`
+`Completed minimal integration validation and passed the initial observation window.`
 
 ## Current Status
 
 - minimum integration validation passed
 - `/api/home` homepage display has been confirmed
-- NPR is now in observation phase
-- the final keep / revert / formalize decision is still pending
+- homepage display confirmation has been followed by stable observation
+- NPR is now retained as the stable third source
+- the remaining open work is homepage duplicate/exposure control, not source keep/revert status

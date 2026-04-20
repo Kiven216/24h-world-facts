@@ -8,8 +8,7 @@ It describes the system **as it currently exists**, not the eventual target syst
 Where the implementation is intentionally provisional, this document marks it as such.
 
 This freeze is meant to establish a stable baseline before:
-- adding a 3rd real source,
-- introducing multi-source homepage duplicate control,
+- introducing heavier cross-source duplicate control,
 - improving ranking and scoring,
 - or expanding topic coverage.
 
@@ -39,13 +38,14 @@ The current system includes:
 
 - FastAPI backend
 - local SQLite storage
-- real-source ingest from BBC RSS and NHK World English list JSON
+- real-source ingest from BBC RSS, NHK World English list JSON, and NPR RSS
 - a 4-step refresh chain:
   - ingest
   - normalize
   - filter
   - publish
 - homepage API payload generation
+- homepage exposure control v0.2
 - mock fallback when real cards are insufficient
 - first-pass heuristic topic / region classification
 - first-pass quality filtering
@@ -152,6 +152,13 @@ NHK uses the public NHK World English list JSON and is currently scoped to:
 - asia
 - biztch
 
+#### NPR
+NPR uses public RSS feeds and is currently scoped to:
+- news
+- politics
+- business
+- technology
+
 ### Design intent
 
 The adapter layer is deliberately lightweight:
@@ -173,7 +180,7 @@ The ingest layer fetches the current source items and persists them into `articl
 ### Current behavior
 
 - initializes the database if needed
-- instantiates BBC and NHK source classes
+- instantiates BBC, NHK, and NPR source classes
 - fetches their current items
 - inserts new rows into `article_raw`
 - returns source-level counts
@@ -329,6 +336,7 @@ Despite the field name `event_id`, the current publish system is still **article
 Current `event_id` format is:
 - `bbc:{article_normalized_id}`
 - `nhk:{article_normalized_id}`
+- `npr:{article_normalized_id}`
 
 So:
 - one article becomes one card,
@@ -380,6 +388,8 @@ The publish layer does not yet:
 
 The homepage composition layer builds the frontend payload returned by `/api/home`.
 
+At the current freeze point, this layer also owns **homepage exposure control v0.2**.
+
 ### Frozen homepage sections
 
 The current homepage response contains:
@@ -419,6 +429,22 @@ Cards are sorted primarily by:
 - `importance_score`
 - `updated_at`
 - `published_at`
+
+### Exposure control v0.2
+
+Homepage exposure control is intentionally lightweight and deterministic.
+
+It currently does two things:
+
+- exact article re-exposure control:
+  - an article already selected into `top_stories` is not shown again in `watchlist`, `by_region`, or `by_topic`
+- same-event-like suppression against `top_stories`:
+  - later buckets use a title-normalization and token-overlap heuristic to reduce obvious repeated coverage of the same event
+
+This is **not** full deduplication.
+It does not merge records, change stored data, or introduce clustering.
+
+If a bucket becomes too sparse after same-event-like suppression, the homepage falls back to ordinary eligible candidates while still keeping exact top-story article repeats excluded.
 
 ### Mock supplementation
 
@@ -638,8 +664,8 @@ That would increase architectural surface area before the current deterministic 
 
 This v1 freeze should remain valid until one of the following is intentionally changed:
 
-- a 3rd real source is added,
-- homepage duplicate control is introduced,
+- a 4th real source is added,
+- homepage duplicate control moves beyond the current exposure-control-only v0.1 layer,
 - scoring becomes source-aware or event-aware,
 - the topic / region rules move into mature dedicated rule modules,
 - or `final_cards` stops behaving as an article-level pseudo-event store.

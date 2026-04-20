@@ -25,7 +25,7 @@ It already includes:
 - Real news sources:
   - BBC RSS (`world`, `business`, `technology`, `politics`)
   - NHK World English (`world`, `japan`, `asia`, `biztch`)
-  - NPR RSS (`news`, `politics`, `business`, `technology`) under observation after minimum validation
+  - NPR RSS (`news`, `politics`, `business`, `technology`) retained as the stable third source
 - Refresh chain:
   - `ingest -> normalize -> filter -> publish`
 - Homepage caps for:
@@ -37,7 +37,9 @@ It already includes:
 - A real quality-filtering layer biased toward hard-news retention
 - Lightweight keyword-driven `why_it_matters`
 - Mock fallback when real cards are still insufficient
-- NPR has completed minimum integration validation and is now in observation phase as the newly validated third-source candidate
+- NPR has passed the observation window and is now retained as the stable third source
+- NPR primarily complements North America / U.S. coverage and is treated as a qualified stable source rather than the fastest-refreshing source
+- homepage exposure control v0.2 now reduces repeated exposure inside `top_stories` and across later buckets without introducing full dedup or clustering
 
 The system is still intentionally limited:
 - publish is currently article-level, not true event-level
@@ -200,7 +202,7 @@ If there are not enough real BBC / NHK / NPR-generated cards yet, `/api/home` su
 
 ## Not Implemented Yet
 
-- Additional RSS or publisher integrations beyond BBC, NHK, and the observed NPR validation source
+- Additional RSS or publisher integrations beyond BBC, NHK, and the retained stable third source NPR
 - Refresh jobs and background scheduling
 - Story clustering and event deduplication
 - Production-grade scoring and confidence logic

@@ -9,12 +9,12 @@ Its minimum adapter validation has now been completed:
 - NPR now runs through the existing `ingest -> normalize -> filter -> publish` chain
 - homepage visibility through `/api/home` has been confirmed
 
-The current next step is observation, not immediate full promotion.
+The observation window has now also been completed.
 
 This means NPR is now treated as:
-- a validated third-source candidate already connected to the product
-- a source under manual observation
-- not yet a fully established stable source
+- the retained stable third source
+- a North America / U.S. complement to BBC + NHK
+- a qualified stable source, though not necessarily the fastest-refreshing source in the mix
 
 ## 1. Purpose
 
@@ -320,19 +320,17 @@ NPR currently offers the best balance of:
 - lower risk of prematurely forcing a heavier architecture
 
 ### Current phase
-NPR has now passed minimum integration validation and moved into an observation phase.
+NPR has now passed both minimum integration validation and the initial observation window.
 
-That means the current decision is no longer “whether NPR can be connected.”
-The current decision is:
+The current decision is no longer “whether NPR should be kept after observation.”
+The current decision has already been made:
 
-- whether NPR should be kept after observation
-- whether overlap with BBC remains acceptable
-- whether it continues to improve North America / policy / tech coverage without materially lowering homepage quality
-
-Reuters and AP remain relevant later candidates, but they should stay in the queue until the NPR observation phase is complete.
+- NPR is retained as the stable third source
+- NPR is primarily used to strengthen North America / U.S. coverage
+- Reuters and AP remain later candidates, but not because NPR is unresolved
 
 ---
 
 ## 9. One-line Summary
 
-v1.1 selected **NPR** as the first third-source candidate; minimum validation is complete, homepage visibility is confirmed, and the source is now in observation phase rather than fully established stable-source status.
+v1.1 selected **NPR** as the first third-source candidate; validation and observation are complete, and NPR is now retained as the stable third source rather than remaining in provisional status.
