@@ -19,6 +19,7 @@ class StoryCard(BaseModel):
     importance_score: float
     published_at: str
     updated_at: str
+    article_url: str | None = None
     source_list: list[str] = Field(default_factory=list)
     is_top_story: bool = False
     is_watchlist: bool = False
@@ -30,4 +31,3 @@ class HomeResponse(BaseModel):
     by_region: dict[str, list[StoryCard]] = Field(default_factory=dict)
     by_topic: dict[str, list[StoryCard]] = Field(default_factory=dict)
     watchlist: list[StoryCard] = Field(default_factory=list)
-

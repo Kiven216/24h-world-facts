@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS final_cards (
     importance_score REAL NOT NULL DEFAULT 0,
     published_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
+    article_url TEXT,
     source_list_json TEXT NOT NULL,
     is_top_story INTEGER NOT NULL DEFAULT 0,
     is_watchlist INTEGER NOT NULL DEFAULT 0
@@ -105,6 +106,9 @@ def init_database() -> None:
         connection.execute(ARTICLE_NORMALIZED_SCHEMA)
         connection.execute(ARTICLE_FILTERED_SCHEMA)
         connection.execute(FINAL_CARDS_SCHEMA)
+        final_card_columns = {row["name"] for row in connection.execute("PRAGMA table_info(final_cards)").fetchall()}
+        if "article_url" not in final_card_columns:
+            connection.execute("ALTER TABLE final_cards ADD COLUMN article_url TEXT")
         connection.execute(APP_META_SCHEMA)
 
 
@@ -156,6 +160,7 @@ def _prepare_final_card_rows(cards: Iterable[dict]) -> list[tuple]:
             card["importance_score"],
             card["published_at"],
             card["updated_at"],
+            card.get("article_url"),
             json.dumps(card["source_list"], ensure_ascii=True),
             int(card.get("is_top_story", False)),
             int(card.get("is_watchlist", False)),
@@ -177,10 +182,11 @@ def replace_final_cards(cards: Iterable[dict]) -> None:
         importance_score,
         published_at,
         updated_at,
+        article_url,
         source_list_json,
         is_top_story,
         is_watchlist
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     prepared_rows = _prepare_final_card_rows(cards)
     with get_connection() as connection:
@@ -202,10 +208,11 @@ def replace_real_final_cards(cards: Iterable[dict]) -> None:
         importance_score,
         published_at,
         updated_at,
+        article_url,
         source_list_json,
         is_top_story,
         is_watchlist
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     prepared_rows = _prepare_final_card_rows(cards)
     with get_connection() as connection:

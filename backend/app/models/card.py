@@ -16,6 +16,7 @@ class CardRecord:
     importance_score: float
     published_at: str
     updated_at: str
+    article_url: str | None
     source_list: list[str]
     is_top_story: bool
     is_watchlist: bool
@@ -34,6 +35,7 @@ class CardRecord:
             importance_score=float(row["importance_score"]),
             published_at=row["published_at"],
             updated_at=row["updated_at"],
+            article_url=row["article_url"],
             source_list=json.loads(row["source_list_json"]),
             is_top_story=bool(row["is_top_story"]),
             is_watchlist=bool(row["is_watchlist"]),
@@ -53,6 +55,7 @@ class CardRecord:
             importance_score=float(payload["importance_score"]),
             published_at=payload["published_at"],
             updated_at=payload["updated_at"],
+            article_url=payload.get("article_url"),
             source_list=list(payload.get("source_list", [])),
             is_top_story=bool(payload.get("is_top_story", False)),
             is_watchlist=bool(payload.get("is_watchlist", False)),
@@ -60,4 +63,3 @@ class CardRecord:
 
     def to_api_dict(self) -> dict[str, Any]:
         return asdict(self)
-

@@ -35,7 +35,7 @@ function normalizeConfidence(status) {
 }
 
 function getStoryTimestamp(story) {
-  return Date.parse(story.updated_at || story.published_at || '') || 0;
+  return Date.parse(story.published_at || story.updated_at || '') || 0;
 }
 
 function sortStories(stories, sortBy) {

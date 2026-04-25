@@ -6,4 +6,5 @@ node_modules/
 dist/
 .env
 data/app.db
-
+data/homepage_exposure_history.json
+data/llm_why_it_matters_cache.json

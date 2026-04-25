@@ -6,6 +6,7 @@ import re
 from ..config import settings
 from ..db import fetch_app_meta, fetch_real_final_cards, init_database
 from ..models.card import CardRecord
+from .explanation_service import enrich_top_stories_with_llm_explanations
 
 
 REGION_BUCKETS = [
@@ -408,6 +409,7 @@ def build_homepage_payload() -> dict:
     top_story_tokens = [_normalize_title_tokens(card.headline) for card in selected_top_stories]
 
     top_stories = [card.to_api_dict() for card in selected_top_stories]
+    top_stories = enrich_top_stories_with_llm_explanations(top_stories, str(meta.get("last_updated", "")))
     watchlist = [
         card.to_api_dict()
         for card in _select_cards_with_suppression(
