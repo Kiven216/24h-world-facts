@@ -33,13 +33,16 @@ It already includes:
   - watchlist
   - by-region buckets
   - by-topic buckets
+- Article publish-time display on homepage cards
+- Original-article links from homepage cards
 - First-pass heuristic topic / region classification
 - A real quality-filtering layer biased toward hard-news retention
-- Lightweight keyword-driven `why_it_matters`
+- LLM-based `why_it_matters` for Top Stories with cache-safe fallback behavior
 - Mock fallback when real cards are still insufficient
 - NPR has passed the observation window and is now retained as the stable third source
 - NPR primarily complements North America / U.S. coverage and is treated as a qualified stable source rather than the fastest-refreshing source
 - homepage exposure control v0.2 now reduces repeated exposure inside `top_stories` and across later buckets without introducing full dedup or clustering
+- Top Stories scoring has received a first-pass rebalance so economy / markets and business / tech / industry can compete more fairly when they have strong signals
 
 The system is still intentionally limited:
 - publish is currently article-level, not true event-level
@@ -130,7 +133,14 @@ The filter layer now leans toward hard-news retention and is stricter about excl
 
 The current balance is intentionally layered: top stories and watchlist remain strict, while qualified technology, industry, trade, and East Asia stories have a better chance of surviving into By Topic / By Region buckets. NHK is mainly used to strengthen Japan / East Asia coverage without loosening the homepage caps.
 
-`why_it_matters` has also been upgraded from broad topic templates to lightweight keyword-driven templates so the card copy is more specific without introducing LLM dependencies.
+Homepage cards now show the source article publish time rather than a uniform refresh-like timestamp, and card headlines can open the original source page when a stable article URL is available.
+
+`why_it_matters` is now split by section on purpose:
+
+- Top Stories use an LLM-based explanation layer with caching and graceful degradation
+- By Topic / By Region / Watchlist keep the simpler non-LLM explanation path
+
+Top Stories scoring has also been rebalanced at the publish layer so economy / markets and business / tech / industry items are less likely to be structurally under-scored before the homepage selector runs. The homepage selector still adds lightweight topic-balance and freshness-aware constraints on top of those base scores.
 
 ### 4. Frontend setup
 
@@ -157,6 +167,8 @@ Examples:
   - leave `VITE_API_BASE_URL` unset and the app will keep using `http://<current-hostname>:8000/api`
 - Staging:
   - set `VITE_API_BASE_URL=https://<your-render-backend-domain>/api`
+
+The backend also supports project-root `.env` loading for local development, so API keys and feature flags such as `OPENAI_API_KEY`, `OPENAI_MODEL`, and `ENABLE_LLM_WHY_IT_MATTERS` can be stored there without manually setting them in each shell session.
 
 ### 5. Mobile / LAN access
 
@@ -206,6 +218,6 @@ If there are not enough real BBC / NHK / NPR-generated cards yet, `/api/home` su
 - Refresh jobs and background scheduling
 - Story clustering and event deduplication
 - Production-grade scoring and confidence logic
-- LLM summaries
+- LLM summaries beyond the current Top Stories `why_it_matters` layer
 - Search, login, favorites, personalization
 - Backend-driven filtering behavior in the frontend
