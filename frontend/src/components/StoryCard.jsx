@@ -33,7 +33,7 @@ function formatPublishedTime(value) {
   });
 }
 
-function StoryCard({ story, compact = false }) {
+function StoryCard({ story, compact = false, variant = 'default' }) {
   const timeLabel = formatPublishedTime(story.published_at || story.updated_at);
   const articleUrl = String(story.article_url || '').trim();
   const isLinked = articleUrl.startsWith('http://') || articleUrl.startsWith('https://');
@@ -54,7 +54,7 @@ function StoryCard({ story, compact = false }) {
   );
 
   return (
-    <article className={`story-card ${compact ? 'story-card-compact' : ''}`}>
+    <article className={`story-card ${compact ? 'story-card-compact' : ''} ${variant !== 'default' ? `story-card-${variant}` : ''}`.trim()}>
       <div className="story-card-topline">
         <span>{formatStatusLabel(story.status)}</span>
         <span>Score {displayScore}</span>

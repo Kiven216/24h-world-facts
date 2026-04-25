@@ -98,6 +98,7 @@ function HomePage() {
   const watchlistStories = filterAndSortStories(homeData.watchlist, filters);
   const regionSections = buildGroupedStories(homeData.by_region, filters, 'region');
   const topicSections = buildGroupedStories(homeData.by_topic, filters, 'topic');
+  const [leadStory, ...supportingTopStories] = topStories;
 
   const handleFilterChange = (field, value) => {
     setFilters((currentFilters) => ({
@@ -163,17 +164,35 @@ function HomePage() {
         {error ? <div className="status-banner">Latest refresh notice: {error}</div> : null}
         {loading ? <div className="status-banner">Loading latest homepage data...</div> : null}
 
-        <SectionBlock title="Top Stories" subtitle="Most important items for the current 24-hour window.">
+        <SectionBlock
+          title="Top Stories"
+          subtitle="Most important items for the current 24-hour window."
+          className="section-block-featured section-block-bare"
+        >
           {topStories.length > 0 ? (
-            <div className="story-grid feature-grid">
-              {topStories.map((story) => (
-                <StoryCard key={story.event_id} story={story} />
-              ))}
+            <div className="top-stories-layout">
+              <StoryCard key={leadStory.event_id} story={leadStory} variant="lead" />
+              {supportingTopStories.length > 0 ? (
+                <div className="top-stories-supporting">
+                  {supportingTopStories.map((story) => (
+                    <StoryCard
+                      key={story.event_id}
+                      story={story}
+                      compact
+                      variant="supporting"
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </SectionBlock>
 
-        <SectionBlock title="By Topic" subtitle="Policy, market, business, and security lenses.">
+        <SectionBlock
+          title="By Topic"
+          subtitle="Policy, market, business, and security lenses."
+          className="section-block-minimal"
+        >
           {topicSections.length > 0 ? (
             <div className="group-stack">
               {topicSections.map(([topic, stories]) => (
@@ -193,7 +212,11 @@ function HomePage() {
           ) : null}
         </SectionBlock>
 
-        <SectionBlock title="By Region" subtitle="Regional grouping with limited overlap by design.">
+        <SectionBlock
+          title="By Region"
+          subtitle="Regional grouping with limited overlap by design."
+          className="section-block-minimal"
+        >
           {regionSections.length > 0 ? (
             <div className="group-stack">
               {regionSections.map(([region, stories]) => (

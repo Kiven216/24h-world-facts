@@ -1,6 +1,6 @@
-function SectionBlock({ title, subtitle, children, emptyMessage = 'No stories match the current filters.' }) {
+function SectionBlock({ title, subtitle, children, emptyMessage = 'No stories match the current filters.', className = '' }) {
   return (
-    <section className="section-block">
+    <section className={`section-block ${className}`.trim()}>
       <div className="section-heading">
         <div>
           <h2>{title}</h2>
