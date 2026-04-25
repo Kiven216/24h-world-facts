@@ -35,11 +35,21 @@ TOP_STORY_TOPIC_SOFT_CAPS = {
     "Conflict / Security": 2,
     "Policy / Politics": 2,
 }
-TOP_STORY_DIVERSITY_TOPICS = (
-    "Economy / Markets",
-    "Business / Tech / Industry",
+TOP_STORY_TOPIC_SOFT_FLOORS = {
+    "Economy / Markets": 1,
+    "Business / Tech / Industry": 1,
+}
+TOP_STORY_DIVERSITY_BOOSTS = {
+    "Economy / Markets": 0.45,
+    "Business / Tech / Industry": 0.35,
+}
+TOP_STORY_DIVERSITY_MIN_SCORE = 7.7
+TOP_STORY_TOPIC_SOFT_CAP_PENALTY = 0.55
+TOP_STORY_OLD_ITEM_PENALTIES = (
+    (22, 0.75),
+    (18, 0.48),
+    (12, 0.22),
 )
-TOP_STORY_DIVERSITY_MIN_SCORE = 7.4
 EXPOSURE_HISTORY_FILENAME = "homepage_exposure_history.json"
 EXPOSURE_HISTORY_MAX_ROUNDS = 5
 EXPOSURE_ROUND_PENALTY = 0.18
@@ -195,6 +205,45 @@ def _sorted_cards(cards: list[CardRecord], exposure_penalties: dict[str, float] 
     return sorted(cards, key=lambda card: _card_selection_key(card, exposure_penalties), reverse=True)
 
 
+def _hours_since_published(card: CardRecord, reference_time: datetime) -> float:
+    published_at = _parse_card_time(card.published_at)
+    return max(0.0, (reference_time - published_at).total_seconds() / 3600)
+
+
+def _top_story_old_item_penalty(card: CardRecord, reference_time: datetime) -> float:
+    age_hours = _hours_since_published(card, reference_time)
+    for minimum_hours, penalty in TOP_STORY_OLD_ITEM_PENALTIES:
+        if age_hours >= minimum_hours:
+            return penalty
+    return 0.0
+
+
+def _top_story_adjusted_score(
+    card: CardRecord,
+    selected_topic_counts: dict[str, int],
+    exposure_penalties: dict[str, float],
+    reference_time: datetime,
+) -> float:
+    score = float(card.importance_score)
+    score -= exposure_penalties.get(card.event_id, 0.0)
+    score -= _top_story_old_item_penalty(card, reference_time)
+
+    topic_floor = TOP_STORY_TOPIC_SOFT_FLOORS.get(card.topic)
+    if (
+        topic_floor is not None
+        and selected_topic_counts.get(card.topic, 0) < topic_floor
+        and float(card.importance_score) >= TOP_STORY_DIVERSITY_MIN_SCORE
+    ):
+        score += TOP_STORY_DIVERSITY_BOOSTS.get(card.topic, 0.0)
+
+    topic_cap = TOP_STORY_TOPIC_SOFT_CAPS.get(card.topic)
+    if topic_cap is not None and selected_topic_counts.get(card.topic, 0) >= topic_cap:
+        overflow = selected_topic_counts.get(card.topic, 0) - topic_cap + 1
+        score -= TOP_STORY_TOPIC_SOFT_CAP_PENALTY * overflow
+
+    return score
+
+
 def _limit_card_payloads(cards: list[CardRecord], max_items: int) -> list[dict]:
     return [card.to_api_dict() for card in _sorted_cards(cards)[:max_items]]
 
@@ -295,35 +344,49 @@ def _select_top_stories_with_guardrail(
     cards: list[CardRecord],
     exposure_penalties: dict[str, float],
 ) -> list[CardRecord]:
-    reserved_cards: list[CardRecord] = []
-    reserved_ids: set[str] = set()
-    reserved_token_sets: list[set[str]] = []
+    if not cards:
+        return []
 
-    # Try to keep at least one strong economy/business card visible when available.
-    for topic in TOP_STORY_DIVERSITY_TOPICS:
-        for card in _sorted_cards([candidate for candidate in cards if candidate.topic == topic], exposure_penalties):
-            if float(card.importance_score) < TOP_STORY_DIVERSITY_MIN_SCORE:
-                continue
-            if card.event_id in reserved_ids:
-                continue
-            if _same_event_strength(card, reserved_token_sets) is not None:
-                continue
-            reserved_cards.append(card)
-            reserved_ids.add(card.event_id)
-            reserved_token_sets.append(_normalize_title_tokens(card.headline))
-            break
+    reference_time = datetime.now(_parse_card_time(cards[0].published_at).tzinfo)
+    selected_cards: list[CardRecord] = []
+    selected_ids: set[str] = set()
+    selected_token_sets: list[set[str]] = []
+    selected_topic_counts: dict[str, int] = {}
 
-    remaining_cards = [card for card in cards if card.event_id not in reserved_ids]
-    filled_cards = _select_cards_with_suppression(
-        remaining_cards,
-        max(0, MAX_TOP_STORIES - len(reserved_cards)),
-        blocked_ids=reserved_ids,
-        reference_token_sets=reserved_token_sets,
-        topic_soft_caps=TOP_STORY_TOPIC_SOFT_CAPS,
-        exposure_penalties=exposure_penalties,
+    def add_card(card: CardRecord) -> None:
+        selected_cards.append(card)
+        selected_ids.add(card.event_id)
+        selected_token_sets.append(_normalize_title_tokens(card.headline))
+        selected_topic_counts[card.topic] = selected_topic_counts.get(card.topic, 0) + 1
+
+    selection_passes = (
+        {None},
+        {None, "moderate"},
+        {None, "moderate", "strong"},
     )
 
-    return _sorted_cards(reserved_cards + filled_cards, exposure_penalties)[:MAX_TOP_STORIES]
+    for allowed_strengths in selection_passes:
+        while len(selected_cards) < MAX_TOP_STORIES:
+            candidates = [
+                card
+                for card in cards
+                if card.event_id not in selected_ids and _same_event_strength(card, selected_token_sets) in allowed_strengths
+            ]
+            if not candidates:
+                break
+
+            best_candidate = max(
+                candidates,
+                key=lambda card: (
+                    _top_story_adjusted_score(card, selected_topic_counts, exposure_penalties, reference_time),
+                    float(card.importance_score),
+                    _parse_card_time(card.updated_at),
+                    _parse_card_time(card.published_at),
+                ),
+            )
+            add_card(best_candidate)
+
+    return selected_cards[:MAX_TOP_STORIES]
 
 
 def load_mock_payload() -> dict:

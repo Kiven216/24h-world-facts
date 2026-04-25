@@ -1,6 +1,7 @@
 """Publish filtered multi-source articles into final_cards with temporary scoring logic."""
 
 from datetime import datetime, timedelta, timezone
+import re
 
 from ..db import build_app_meta, fetch_publish_candidates, replace_app_meta, replace_real_final_cards
 
@@ -13,22 +14,169 @@ def _source_label(source: str) -> str:
     return {"bbc": "BBC", "nhk": "NHK"}.get(source.lower(), source.upper())
 
 
+TOPIC_BASE_SCORES = {
+    "Conflict / Security": 8.15,
+    "Policy / Politics": 8.0,
+    "Economy / Markets": 7.95,
+    "Business / Tech / Industry": 7.85,
+}
+ECONOMY_SIGNAL_TERMS = (
+    "inflation",
+    "cpi",
+    "rates",
+    "interest rates",
+    "central bank",
+    "fed",
+    "boj",
+    "ecb",
+    "yield",
+    "yields",
+    "jobs",
+    "payroll",
+    "payrolls",
+    "unemployment",
+    "trade",
+    "tariff",
+    "tariffs",
+    "exports",
+    "imports",
+    "oil prices",
+    "recession",
+    "growth",
+    "budget",
+    "deficit",
+    "currency",
+    "yen",
+    "dollar",
+)
+BUSINESS_SIGNAL_TERMS = (
+    "ai",
+    "chip",
+    "chips",
+    "semiconductor",
+    "export controls",
+    "cloud",
+    "data center",
+    "data centres",
+    "antitrust",
+    "merger",
+    "earnings",
+    "guidance",
+    "layoffs",
+    "supply chain",
+    "factory",
+    "manufacturing",
+    "platform",
+    "software",
+    "telecom",
+    "industrial policy",
+    "battery",
+    "ev",
+    "foundry",
+    "fab",
+)
+POLICY_SIGNAL_TERMS = (
+    "election",
+    "vote",
+    "court",
+    "ruling",
+    "law",
+    "regulator",
+    "government",
+    "minister",
+    "cabinet",
+    "parliament",
+    "diet",
+    "president",
+    "prime minister",
+)
+CONFLICT_SIGNAL_TERMS = (
+    "war",
+    "attack",
+    "military",
+    "sanction",
+    "sanctions",
+    "security",
+    "hostage",
+    "strike",
+    "missile",
+    "troops",
+    "ceasefire",
+    "clash",
+    "clashes",
+    "maritime",
+    "territorial",
+    "blockade",
+)
+GENERAL_HIGH_IMPACT_TERMS = (
+    "election",
+    "court",
+    "tariff",
+    "inflation",
+    "rates",
+    "war",
+    "attack",
+    "sanction",
+    "sanctions",
+    "central bank",
+    "merger",
+    "earnings",
+    "export controls",
+)
+TOP_STORY_SCORE_THRESHOLD = 8.4
+TOP_STORY_TOPIC_ENTRY_THRESHOLDS = {
+    "Economy / Markets": 8.15,
+    "Business / Tech / Industry": 8.05,
+}
+
+
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    for keyword in keywords:
+        if " " in keyword:
+            if keyword in text:
+                return True
+            continue
+        if re.search(rf"\b{re.escape(keyword)}\b", text):
+            return True
+    return False
+
+
+def _count_term_hits(text: str, keywords: tuple[str, ...]) -> int:
+    return sum(1 for keyword in keywords if _contains_any(text, (keyword,)))
+
+
 def _score_article(topic: str, title: str) -> float:
     lowered_title = title.lower()
     # Temporary 10-point display scale until event-level scoring replaces article-level heuristics.
-    if topic == "Policy / Politics":
-        base_score = 8.3
-    elif topic == "Economy / Markets":
-        base_score = 7.8
-    elif topic == "Business / Tech / Industry":
-        base_score = 7.2
-    else:
-        base_score = 8.5
+    base_score = TOPIC_BASE_SCORES.get(topic, 8.0)
 
-    if any(keyword in lowered_title for keyword in ("election", "tariff", "sanction", "inflation", "war", "attack", "court")):
-        base_score += 0.4
-    if any(keyword in lowered_title for keyword in ("ai", "chip", "market", "trade", "government")):
-        base_score += 0.2
+    if _contains_any(lowered_title, GENERAL_HIGH_IMPACT_TERMS):
+        base_score += 0.25
+
+    if topic == "Economy / Markets":
+        signal_hits = _count_term_hits(lowered_title, ECONOMY_SIGNAL_TERMS)
+        if signal_hits >= 1:
+            base_score += 0.25
+        if signal_hits >= 2:
+            base_score += 0.15
+    elif topic == "Business / Tech / Industry":
+        signal_hits = _count_term_hits(lowered_title, BUSINESS_SIGNAL_TERMS)
+        if signal_hits >= 1:
+            base_score += 0.3
+        if signal_hits >= 2:
+            base_score += 0.15
+    elif topic == "Policy / Politics":
+        signal_hits = _count_term_hits(lowered_title, POLICY_SIGNAL_TERMS)
+        if signal_hits >= 1:
+            base_score += 0.2
+        if signal_hits >= 2:
+            base_score += 0.1
+    else:
+        signal_hits = _count_term_hits(lowered_title, CONFLICT_SIGNAL_TERMS)
+        if signal_hits >= 1:
+            base_score += 0.22
+        if signal_hits >= 2:
+            base_score += 0.1
 
     return round(min(max(base_score, 6.5), 9.2), 1)
 
@@ -42,6 +190,11 @@ def _should_watch(title: str, topic: str, score: float) -> bool:
     lowered_title = title.lower()
     watch_terms = ("tariff", "sanction", "inflation", "court", "war", "attack")
     return topic == "Conflict / Security" or (score >= 8.6 and any(keyword in lowered_title for keyword in watch_terms))
+
+
+def _is_top_story_candidate(topic: str, score: float) -> bool:
+    topic_threshold = TOP_STORY_TOPIC_ENTRY_THRESHOLDS.get(topic, TOP_STORY_SCORE_THRESHOLD)
+    return score >= topic_threshold
 
 
 def run_publish() -> dict[str, int]:
@@ -69,7 +222,7 @@ def run_publish() -> dict[str, int]:
                 "updated_at": row["filtered_at"],
                 "article_url": row["url_canonical"],
                 "source_list": [_source_label(row["source"])],
-                "is_top_story": score >= 8.6,
+                "is_top_story": _is_top_story_candidate(row["topic_guess"], score),
                 "is_watchlist": _should_watch(row["title"], row["topic_guess"], score),
             }
         )

@@ -12,6 +12,7 @@ const REGION_OPTIONS = ['All', 'North America', 'Europe', 'Japan / East Asia', '
 const TOPIC_OPTIONS = ['All', 'Policy / Politics', 'Economy / Markets', 'Business / Tech / Industry', 'Conflict / Security'];
 const CONFIDENCE_OPTIONS = ['All', 'Official', 'Confirmed', 'Widely Reported', 'Developing', 'Monitoring'];
 const SORT_OPTIONS = ['Importance', 'Latest'];
+const TOPIC_SECTION_ORDER = ['Economy / Markets', 'Business / Tech / Industry', 'Policy / Politics', 'Conflict / Security'];
 
 const DEFAULT_FILTERS = {
   region: 'All',
@@ -67,21 +68,23 @@ function filterAndSortStories(stories, filters) {
 function buildGroupedStories(groupedStories, filters, category) {
   const selectedValue = category === 'region' ? filters.region : filters.topic;
   const visibleEntries = Object.entries(groupedStories).filter(([groupName]) => selectedValue === 'All' || groupName === selectedValue);
+  const orderedEntries = category === 'topic'
+    ? [...visibleEntries].sort(([leftName], [rightName]) => {
+        const leftIndex = TOPIC_SECTION_ORDER.indexOf(leftName);
+        const rightIndex = TOPIC_SECTION_ORDER.indexOf(rightName);
+        const normalizedLeftIndex = leftIndex === -1 ? TOPIC_SECTION_ORDER.length : leftIndex;
+        const normalizedRightIndex = rightIndex === -1 ? TOPIC_SECTION_ORDER.length : rightIndex;
+        return normalizedLeftIndex - normalizedRightIndex;
+      })
+    : visibleEntries;
 
-  return visibleEntries
+  return orderedEntries
     .map(([groupName, stories]) => [groupName, filterAndSortStories(stories, filters)])
     .filter(([, stories]) => stories.length > 0);
 }
 
 function buildActiveSummary(filters) {
-  const summaryParts = [
-    `Region: ${filters.region}`,
-    `Topic: ${filters.topic}`,
-    `Confidence: ${filters.confidence}`,
-    `Sort: ${filters.sortBy}`,
-  ];
-
-  return summaryParts.join('  |  ');
+  return `${filters.region} / ${filters.topic} / ${filters.confidence} / ${filters.sortBy}`;
 }
 
 function HomePage() {
@@ -140,12 +143,13 @@ function HomePage() {
     <div className="page-shell">
       <div className="page-backdrop" />
       <main className="page-content">
-        <HeaderBar meta={homeData.meta} activeSummary={buildActiveSummary(filters)} />
+        <HeaderBar meta={homeData.meta} />
 
         <div className="toolbar-row">
           <FilterBar
             filters={filters}
             onFilterChange={handleFilterChange}
+            summary={buildActiveSummary(filters)}
             options={{
               region: REGION_OPTIONS,
               topic: TOPIC_OPTIONS,
@@ -169,26 +173,6 @@ function HomePage() {
           ) : null}
         </SectionBlock>
 
-        <SectionBlock title="By Region" subtitle="Regional grouping with limited overlap by design.">
-          {regionSections.length > 0 ? (
-            <div className="group-stack">
-              {regionSections.map(([region, stories]) => (
-                <section key={region} className="subsection-block">
-                  <div className="subsection-heading">
-                    <h3>{region}</h3>
-                    <span>{stories.length} stories</span>
-                  </div>
-                  <div className="story-grid">
-                    {stories.map((story) => (
-                      <StoryCard key={`${region}-${story.event_id}`} story={story} compact />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          ) : null}
-        </SectionBlock>
-
         <SectionBlock title="By Topic" subtitle="Policy, market, business, and security lenses.">
           {topicSections.length > 0 ? (
             <div className="group-stack">
@@ -201,6 +185,26 @@ function HomePage() {
                   <div className="story-grid">
                     {stories.map((story) => (
                       <StoryCard key={`${topic}-${story.event_id}`} story={story} compact />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : null}
+        </SectionBlock>
+
+        <SectionBlock title="By Region" subtitle="Regional grouping with limited overlap by design.">
+          {regionSections.length > 0 ? (
+            <div className="group-stack">
+              {regionSections.map(([region, stories]) => (
+                <section key={region} className="subsection-block">
+                  <div className="subsection-heading">
+                    <h3>{region}</h3>
+                    <span>{stories.length} stories</span>
+                  </div>
+                  <div className="story-grid">
+                    {stories.map((story) => (
+                      <StoryCard key={`${region}-${story.event_id}`} story={story} compact />
                     ))}
                   </div>
                 </section>
