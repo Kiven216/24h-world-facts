@@ -29,8 +29,8 @@ MAX_WATCHLIST = 4
 MAX_REGION_STORIES = 3
 MAX_TOPIC_STORIES = 3
 SAME_EVENT_MIN_SHARED_TOKENS = 3
-MODERATE_SAME_EVENT_OVERLAP_THRESHOLD = 0.46
-STRONG_SAME_EVENT_OVERLAP_THRESHOLD = 0.68
+MODERATE_SAME_EVENT_OVERLAP_THRESHOLD = 0.42
+STRONG_SAME_EVENT_OVERLAP_THRESHOLD = 0.64
 TOP_STORY_TOPIC_SOFT_CAPS = {
     "Conflict / Security": 2,
     "Policy / Politics": 2,
@@ -46,9 +46,9 @@ TOP_STORY_DIVERSITY_BOOSTS = {
 TOP_STORY_DIVERSITY_MIN_SCORE = 7.7
 TOP_STORY_TOPIC_SOFT_CAP_PENALTY = 0.55
 TOP_STORY_OLD_ITEM_PENALTIES = (
-    (22, 0.75),
-    (18, 0.48),
-    (12, 0.22),
+    (20, 0.82),
+    (16, 0.55),
+    (12, 0.24),
 )
 EXPOSURE_HISTORY_FILENAME = "homepage_exposure_history.json"
 EXPOSURE_HISTORY_MAX_ROUNDS = 5
@@ -63,19 +63,39 @@ PHRASE_NORMALIZATIONS = {
     "supreme court": "court",
     "strait of hormuz": "hormuz",
     "warning shots": "warning",
+    "united states": "us",
+    "u s": "us",
+    "united kingdom": "uk",
+    "european union": "eu",
+    "prime minister": "pm",
+    "interest rates": "rate",
+    "oil prices": "oilprice",
+    "stock market": "market",
 }
 TOKEN_NORMALIZATIONS = {
+    "said": "say",
+    "says": "say",
     "seized": "seize",
     "seizure": "seize",
     "seizures": "seize",
+    "attacks": "attack",
+    "attacked": "attack",
+    "killed": "kill",
+    "killing": "kill",
     "warns": "warn",
     "warning": "warn",
     "warnings": "warn",
     "sanctions": "sanction",
     "tariffs": "tariff",
+    "rates": "rate",
+    "elections": "election",
+    "votes": "vote",
     "cuts": "cut",
     "ships": "ship",
     "vessels": "ship",
+    "talks": "talk",
+    "ministers": "minister",
+    "governments": "government",
     "mortgages": "mortgage",
 }
 TITLE_STOPWORDS = {
@@ -86,19 +106,31 @@ TITLE_STOPWORDS = {
     "as",
     "at",
     "be",
+    "but",
     "for",
     "from",
+    "has",
+    "have",
+    "how",
     "in",
     "into",
     "is",
     "it",
+    "latest",
+    "live",
+    "new",
     "of",
     "on",
     "or",
+    "over",
+    "says",
     "that",
     "the",
     "their",
     "to",
+    "up",
+    "what",
+    "why",
     "with",
 }
 
@@ -260,6 +292,10 @@ def _normalize_title_tokens(title: str) -> set[str]:
         if len(token) > 1 and token not in TITLE_STOPWORDS
     }
     return tokens
+
+
+def _token_sets_from_cards(cards: list[CardRecord]) -> list[set[str]]:
+    return [_normalize_title_tokens(card.headline) for card in cards]
 
 
 def _same_event_overlap(candidate_tokens: set[str], reference_tokens: set[str]) -> float:
@@ -469,46 +505,47 @@ def build_homepage_payload() -> dict:
 
     selected_top_stories = _select_top_stories_with_guardrail(top_story_cards, exposure_penalties)
     top_story_ids = {card.event_id for card in selected_top_stories}
-    top_story_tokens = [_normalize_title_tokens(card.headline) for card in selected_top_stories]
+    top_story_tokens = _token_sets_from_cards(selected_top_stories)
 
     top_stories = [card.to_api_dict() for card in selected_top_stories]
     top_stories = enrich_top_stories_with_llm_explanations(top_stories, str(meta.get("last_updated", "")))
-    watchlist = [
-        card.to_api_dict()
-        for card in _select_cards_with_suppression(
-            watchlist_cards,
-            MAX_WATCHLIST,
-            blocked_ids=top_story_ids,
-            reference_token_sets=top_story_tokens,
+    downstream_blocked_ids = set(top_story_ids)
+    downstream_reference_tokens = list(top_story_tokens)
+
+    limited_topic = {}
+    for name, topic_cards in by_topic.items():
+        selected_topic_cards = _select_cards_with_suppression(
+            topic_cards,
+            MAX_TOPIC_STORIES,
+            blocked_ids=downstream_blocked_ids,
+            reference_token_sets=downstream_reference_tokens,
             exposure_penalties=exposure_penalties,
         )
-    ]
-    limited_region = {
-        name: [
-            card.to_api_dict()
-            for card in _select_cards_with_suppression(
-                region_cards,
-                MAX_REGION_STORIES,
-                blocked_ids=top_story_ids,
-                reference_token_sets=top_story_tokens,
-                exposure_penalties=exposure_penalties,
-            )
-        ]
-        for name, region_cards in by_region.items()
-    }
-    limited_topic = {
-        name: [
-            card.to_api_dict()
-            for card in _select_cards_with_suppression(
-                topic_cards,
-                MAX_TOPIC_STORIES,
-                blocked_ids=top_story_ids,
-                reference_token_sets=top_story_tokens,
-                exposure_penalties=exposure_penalties,
-            )
-        ]
-        for name, topic_cards in by_topic.items()
-    }
+        limited_topic[name] = [card.to_api_dict() for card in selected_topic_cards]
+        downstream_blocked_ids.update(card.event_id for card in selected_topic_cards)
+        downstream_reference_tokens.extend(_token_sets_from_cards(selected_topic_cards))
+
+    limited_region = {}
+    for name, region_cards in by_region.items():
+        selected_region_cards = _select_cards_with_suppression(
+            region_cards,
+            MAX_REGION_STORIES,
+            blocked_ids=downstream_blocked_ids,
+            reference_token_sets=downstream_reference_tokens,
+            exposure_penalties=exposure_penalties,
+        )
+        limited_region[name] = [card.to_api_dict() for card in selected_region_cards]
+        downstream_blocked_ids.update(card.event_id for card in selected_region_cards)
+        downstream_reference_tokens.extend(_token_sets_from_cards(selected_region_cards))
+
+    selected_watchlist_cards = _select_cards_with_suppression(
+        watchlist_cards,
+        MAX_WATCHLIST,
+        blocked_ids=downstream_blocked_ids,
+        reference_token_sets=downstream_reference_tokens,
+        exposure_penalties=exposure_penalties,
+    )
+    watchlist = [card.to_api_dict() for card in selected_watchlist_cards]
 
     exposed_event_ids = top_story_ids | {item["event_id"] for item in watchlist}
     for bucket_items in limited_region.values():

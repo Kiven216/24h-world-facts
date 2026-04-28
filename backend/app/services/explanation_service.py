@@ -14,7 +14,7 @@ from ..config import settings
 
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-LLM_CACHE_VERSION = "v0.5"
+LLM_CACHE_VERSION = "v0.6"
 LLM_CACHE_MAX_ITEMS = 512
 LLM_MAX_WORKERS = 4
 LLM_MAX_OUTPUT_TOKENS = 88
@@ -70,6 +70,17 @@ def _looks_incomplete(text: str) -> bool:
 def _contains_generic_phrase(text: str) -> bool:
     lowered = text.lower()
     return any(marker in lowered for marker in GENERIC_PHRASE_MARKERS)
+
+
+def _with_terminal_period(text: str) -> str:
+    cleaned = _normalize_text(text)
+    if not cleaned:
+        return ""
+    if cleaned[-1] in ".!?":
+        return cleaned
+    if re.search(r"[a-zA-Z0-9]$", cleaned):
+        return f"{cleaned}."
+    return cleaned
 
 
 def _load_cache() -> dict[str, dict[str, Any]]:
@@ -192,8 +203,32 @@ def _call_openai_shorten_retry(story: dict[str, Any], draft: str) -> str:
     return _call_openai(payload)
 
 
+def _call_openai_retry_for_story(story: dict[str, Any]) -> str:
+    payload = {
+        "model": settings.openai_model,
+        "instructions": (
+            "Write one concise why-it-matters-now note for a world news briefing. "
+            "Prefer 1 sentence, but 2 short sentences are allowed if they are specific and still read cleanly. "
+            "Keep it factual, restrained, and close to the headline and summary. "
+            "Explain only the immediate relevance now. Do not add broad strategic, market-wide, or geopolitical framing unless the story explicitly supports it."
+        ),
+        "input": (
+            f"Headline: {story.get('headline', '')}\n"
+            f"Summary: {story.get('summary', '')}\n"
+            f"Source: {' / '.join(story.get('source_list', [])) or 'Unknown source'}\n"
+            f"Topic: {story.get('topic', '')}\n"
+            f"Region: {story.get('region', '')}\n"
+            "Return the explanation only."
+        ),
+        "max_output_tokens": 72,
+        "temperature": 0.15,
+        "store": False,
+    }
+    return _call_openai(payload)
+
+
 def _prepare_candidate(text: str) -> str:
-    cleaned = _normalize_text(text)
+    cleaned = _with_terminal_period(text)
     if not cleaned or _looks_incomplete(cleaned):
         return ""
 
@@ -242,10 +277,15 @@ def _generate_story_explanation(story: dict[str, Any], edition_time: str, top_st
         if original_status == "retry":
             shortened = _call_openai_shorten_retry(story, original_candidate or original)
             retry_status, retry_candidate = _assess_explanation(shortened, str(story.get("summary", "")))
-            if retry_status == "accept":
+            if retry_status in {"accept", "retry"} and retry_candidate:
                 return retry_candidate
             if original_candidate:
                 return original_candidate
+        if original_status == "reject":
+            retry_from_scratch = _call_openai_retry_for_story(story)
+            retry_status, retry_candidate = _assess_explanation(retry_from_scratch, str(story.get("summary", "")))
+            if retry_status in {"accept", "retry"} and retry_candidate:
+                return retry_candidate
         return ""
     except (HTTPError, URLError, OSError, TimeoutError, json.JSONDecodeError, ValueError):
         return ""
