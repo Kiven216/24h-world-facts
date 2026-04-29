@@ -98,7 +98,6 @@ function HomePage() {
   const watchlistStories = filterAndSortStories(homeData.watchlist, filters);
   const regionSections = buildGroupedStories(homeData.by_region, filters, 'region');
   const topicSections = buildGroupedStories(homeData.by_topic, filters, 'topic');
-  const [leadStory, ...supportingTopStories] = topStories;
 
   const handleFilterChange = (field, value) => {
     setFilters((currentFilters) => ({
@@ -144,7 +143,10 @@ function HomePage() {
     <div className="page-shell">
       <div className="page-backdrop" />
       <main className="page-content">
-        <HeaderBar meta={homeData.meta} />
+        <HeaderBar
+          meta={homeData.meta}
+          action={<RefreshButton loading={refreshing} onRefresh={() => loadHomeData({ isManualRefresh: true })} label="Refresh feed" />}
+        />
 
         <div className="toolbar-row">
           <FilterBar
@@ -158,7 +160,6 @@ function HomePage() {
               sortBy: SORT_OPTIONS,
             }}
           />
-          <RefreshButton loading={refreshing} onRefresh={() => loadHomeData({ isManualRefresh: true })} />
         </div>
 
         {error ? <div className="status-banner">Latest refresh notice: {error}</div> : null}
@@ -170,20 +171,15 @@ function HomePage() {
           className="section-block-featured section-block-bare"
         >
           {topStories.length > 0 ? (
-            <div className="top-stories-layout">
-              <StoryCard key={leadStory.event_id} story={leadStory} variant="lead" />
-              {supportingTopStories.length > 0 ? (
-                <div className="top-stories-supporting">
-                  {supportingTopStories.map((story) => (
-                    <StoryCard
-                      key={story.event_id}
-                      story={story}
-                      compact
-                      variant="supporting"
-                    />
-                  ))}
-                </div>
-              ) : null}
+            <div className="top-stories-grid">
+              {topStories.map((story, index) => (
+                <StoryCard
+                  key={story.event_id}
+                  story={story}
+                  compact={index > 0}
+                  variant={index === 0 ? 'lead' : 'supporting'}
+                />
+              ))}
             </div>
           ) : null}
         </SectionBlock>
@@ -236,7 +232,11 @@ function HomePage() {
           ) : null}
         </SectionBlock>
 
-        <SectionBlock title="Watchlist" subtitle="Items worth monitoring for follow-through or second-order impact.">
+        <SectionBlock
+          title="Watchlist"
+          subtitle="Items worth monitoring for follow-through or second-order impact."
+          className="section-block-watchlist"
+        >
           {watchlistStories.length > 0 ? (
             <div className="story-grid">
               {watchlistStories.map((story) => (

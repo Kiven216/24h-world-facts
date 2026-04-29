@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 
-
 const MOBILE_MEDIA_QUERY = '(max-width: 560px)';
-
 
 function FilterBar({ filters, onFilterChange, options, summary }) {
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -45,50 +43,65 @@ function FilterBar({ filters, onFilterChange, options, summary }) {
       ) : null}
 
       {(!isMobile || isOpen) ? (
-        <div className="filter-bar">
-          <label className="filter-control">
-            <span className="filter-label">Region</span>
-            <select value={filters.region} onChange={(event) => onFilterChange('region', event.target.value)}>
-              {options.region.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className={`filter-bar-shell ${isMobile ? 'filter-bar-shell-mobile' : ''}`}>
+          {isMobile ? <button className="filter-overlay" type="button" aria-label="Close filters" onClick={() => setIsOpen(false)} /> : null}
+          <div className={`filter-bar ${isMobile ? 'filter-bar-mobile' : ''}`}>
+            {isMobile ? (
+              <div className="filter-mobile-header">
+                <div>
+                  <strong>Filters</strong>
+                  <span>{summary}</span>
+                </div>
+                <button className="filter-close" type="button" onClick={() => setIsOpen(false)}>
+                  Done
+                </button>
+              </div>
+            ) : null}
 
-          <label className="filter-control">
-            <span className="filter-label">Topic</span>
-            <select value={filters.topic} onChange={(event) => onFilterChange('topic', event.target.value)}>
-              {options.topic.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="filter-control">
+              <span className="filter-label">Region</span>
+              <select value={filters.region} onChange={(event) => onFilterChange('region', event.target.value)}>
+                {options.region.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label className="filter-control">
-            <span className="filter-label">Confidence</span>
-            <select value={filters.confidence} onChange={(event) => onFilterChange('confidence', event.target.value)}>
-              {options.confidence.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="filter-control">
+              <span className="filter-label">Topic</span>
+              <select value={filters.topic} onChange={(event) => onFilterChange('topic', event.target.value)}>
+                {options.topic.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label className="filter-control">
-            <span className="filter-label">Sort by</span>
-            <select value={filters.sortBy} onChange={(event) => onFilterChange('sortBy', event.target.value)}>
-              {options.sortBy.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="filter-control">
+              <span className="filter-label">Confidence</span>
+              <select value={filters.confidence} onChange={(event) => onFilterChange('confidence', event.target.value)}>
+                {options.confidence.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="filter-control">
+              <span className="filter-label">Sort by</span>
+              <select value={filters.sortBy} onChange={(event) => onFilterChange('sortBy', event.target.value)}>
+                {options.sortBy.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       ) : null}
     </section>

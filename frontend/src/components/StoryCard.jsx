@@ -64,7 +64,7 @@ function StoryCard({ story, compact = false, variant = 'default' }) {
       <p className="story-summary">{story.summary}</p>
       {story.why_it_matters ? <p className="story-impact">{story.why_it_matters}</p> : null}
 
-      <div className="story-tags">
+      <div className="story-context">
         <span>{story.region}</span>
         <span>{story.topic}</span>
       </div>
