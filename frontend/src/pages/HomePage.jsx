@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import FilterBar from '../components/FilterBar';
 import HeaderBar from '../components/HeaderBar';
+import HomepageDebugPanel from '../components/HomepageDebugPanel';
 import RefreshButton from '../components/RefreshButton';
 import SectionBlock from '../components/SectionBlock';
 import StoryCard from '../components/StoryCard';
@@ -88,6 +89,7 @@ function buildActiveSummary(filters) {
 }
 
 function HomePage() {
+  const debugEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
   const [homeData, setHomeData] = useState(mockHomeData);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,7 +126,7 @@ function HomePage() {
         }
       }
 
-      const payload = await fetchHomeData();
+      const payload = await fetchHomeData({ debug: debugEnabled });
       setHomeData(payload);
       setError(refreshError);
     } catch (requestError) {
@@ -137,7 +139,7 @@ function HomePage() {
 
   useEffect(() => {
     loadHomeData();
-  }, []);
+  }, [debugEnabled]);
 
   return (
     <div className="page-shell">
@@ -245,6 +247,8 @@ function HomePage() {
             </div>
           ) : null}
         </SectionBlock>
+
+        {debugEnabled ? <HomepageDebugPanel debug={homeData.debug} /> : null}
       </main>
     </div>
   );

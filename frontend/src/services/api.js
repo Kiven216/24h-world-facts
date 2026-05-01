@@ -13,8 +13,13 @@ function normalizeApiBaseUrl(rawUrl) {
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || resolveDefaultApiBaseUrl());
 
-export async function fetchHomeData() {
-  const response = await fetch(`${API_BASE_URL}/home`);
+export async function fetchHomeData({ debug = false } = {}) {
+  const url = new URL(`${API_BASE_URL}/home`);
+  if (debug) {
+    url.searchParams.set('debug', '1');
+  }
+
+  const response = await fetch(url.toString());
 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
