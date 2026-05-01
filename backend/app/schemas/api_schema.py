@@ -21,6 +21,7 @@ class StoryCard(BaseModel):
     updated_at: str
     article_url: str | None = None
     source_list: list[str] = Field(default_factory=list)
+    signal_tags: list[str] = Field(default_factory=list)
     is_top_story: bool = False
     is_watchlist: bool = False
 

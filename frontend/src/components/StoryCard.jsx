@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 function formatStatusLabel(status) {
   const normalizedStatus = String(status || '').trim().toLowerCase();
   const labelMap = {
@@ -34,9 +36,11 @@ function formatPublishedTime(value) {
 }
 
 function StoryCard({ story, compact = false, variant = 'default' }) {
+  const [signalsOpen, setSignalsOpen] = useState(false);
   const timeLabel = formatPublishedTime(story.published_at || story.updated_at);
   const articleUrl = String(story.article_url || '').trim();
   const isLinked = articleUrl.startsWith('http://') || articleUrl.startsWith('https://');
+  const signalTags = Array.isArray(story.signal_tags) ? story.signal_tags : [];
   // The UI intentionally keeps a 10-point display scale even though the raw field is named importance_score.
   const displayScore = Number(story.importance_score || 0).toFixed(1);
   const headlineNode = isLinked ? (
@@ -68,6 +72,28 @@ function StoryCard({ story, compact = false, variant = 'default' }) {
         <span>{story.region}</span>
         <span>{story.topic}</span>
       </div>
+
+      {signalTags.length > 0 ? (
+        <div className="story-signals">
+          <button
+            type="button"
+            className="story-signals-toggle"
+            onClick={() => setSignalsOpen((currentValue) => !currentValue)}
+            aria-expanded={signalsOpen}
+          >
+            Signals · {signalTags.length}
+          </button>
+          {signalsOpen ? (
+            <div className="story-signals-tags">
+              {signalTags.map((tag) => (
+                <span key={`${story.event_id}-${tag}`} className="story-signals-tag">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="story-footer">
         <span>{timeLabel || 'Time unavailable'}</span>
