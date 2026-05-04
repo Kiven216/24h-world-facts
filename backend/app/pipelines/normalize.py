@@ -165,6 +165,14 @@ def _guess_topic(source: str, feed_name: str, text_blob: str) -> str:
         return "Economy / Markets"
     if normalized_feed == "technology":
         return "Business / Tech / Industry"
+    if normalized_source == "dw" and normalized_feed == "germany":
+        if _contains_keyword(lowered_blob, SECURITY_KEYWORDS):
+            return "Conflict / Security"
+        if _contains_keyword(lowered_blob, MARKET_KEYWORDS):
+            return "Economy / Markets"
+        if _contains_keyword(lowered_blob, TECH_KEYWORDS):
+            return "Business / Tech / Industry"
+        return "Policy / Politics"
 
     if normalized_feed == "biztch":
         if _contains_keyword(lowered_blob, TECH_KEYWORDS):
@@ -215,6 +223,8 @@ def _guess_region(source: str, feed_name: str, text_blob: str, topic_guess: str)
         return "North America"
     if _contains_keyword(lowered_blob, EAST_ASIA_KEYWORDS):
         return "Japan / East Asia"
+    if normalized_source == "dw" and normalized_feed == "germany":
+        return "Europe"
     if normalized_source == "nhk" and normalized_feed in {"japan", "asia"}:
         return "Japan / East Asia"
     if normalized_feed in {"business", "technology", "biztch"}:

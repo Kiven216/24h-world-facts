@@ -11,7 +11,7 @@ def _parse_iso_datetime(value: str) -> datetime:
 
 
 def _source_label(source: str) -> str:
-    return {"bbc": "BBC", "nhk": "NHK"}.get(source.lower(), source.upper())
+    return {"bbc": "BBC", "nhk": "NHK", "dw": "DW"}.get(source.lower(), source.upper())
 
 
 TOPIC_BASE_SCORES = {

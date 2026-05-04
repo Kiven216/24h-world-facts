@@ -61,7 +61,7 @@ EXPOSURE_HISTORY_FILENAME = "homepage_exposure_history.json"
 EXPOSURE_HISTORY_MAX_ROUNDS = 5
 EXPOSURE_ROUND_PENALTY = 0.18
 EXPOSURE_STREAK_PENALTY = 0.22
-REAL_SOURCE_PREFIXES = {"bbc", "nhk", "npr"}
+REAL_SOURCE_PREFIXES = {"bbc", "nhk", "npr", "dw"}
 PHRASE_NORMALIZATIONS = {
     "artificial intelligence": "ai",
     "crude oil": "oil",

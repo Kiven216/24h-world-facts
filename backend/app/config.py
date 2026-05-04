@@ -71,6 +71,7 @@ class Settings:
     enable_llm_why_it_matters: bool = field(
         default_factory=lambda: _get_env_bool("ENABLE_LLM_WHY_IT_MATTERS", _default_enable_llm_why_it_matters())
     )
+    enable_dw_source: bool = field(default_factory=lambda: _get_env_bool("ENABLE_DW_SOURCE", False))
     llm_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("LLM_TIMEOUT_SECONDS", "6")))
     llm_cache_path_env: str = field(default_factory=lambda: os.getenv("LLM_CACHE_PATH", ""))
 
