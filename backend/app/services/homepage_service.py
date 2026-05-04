@@ -575,6 +575,22 @@ def _record_suppressed_candidate(
     debug_state["strength_counts"][match["match_class"]] = debug_state["strength_counts"].get(match["match_class"], 0) + 1
 
 
+def _finalize_debug_suppression_actions(debug_state: dict | None, selected_event_ids: set[str]) -> dict[str, int]:
+    if not debug_state:
+        return {"suppressed": 0, "selected_after_fallback": 0}
+
+    counts = {"suppressed": 0, "selected_after_fallback": 0}
+    for record in debug_state["suppressed"]:
+        candidate_event_id = record.get("candidate", {}).get("event_id", "")
+        if candidate_event_id and candidate_event_id in selected_event_ids:
+            record["action"] = "selected_after_fallback"
+            counts["selected_after_fallback"] += 1
+        else:
+            record["action"] = "suppressed"
+            counts["suppressed"] += 1
+    return counts
+
+
 def _same_event_overlap(candidate_tokens: set[str], reference_tokens: set[str]) -> float:
     shared_tokens = candidate_tokens & reference_tokens
     if len(shared_tokens) < SAME_EVENT_MIN_SHARED_TOKENS:
@@ -1085,6 +1101,8 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
         exposed_event_ids.update(item["event_id"] for item in bucket_items)
     _record_homepage_exposure(exposure_history, str(meta.get("last_updated", "")), exposed_event_ids)
 
+    debug_action_counts = _finalize_debug_suppression_actions(debug_state, exposed_event_ids)
+
     payload = {
         "meta": meta,
         "top_stories": top_stories,
@@ -1097,7 +1115,8 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
         payload["debug"] = {
             "summary": {
                 "selected_top_count": len(selected_top_stories),
-                "suppressed_count": len(debug_state["suppressed"]),
+                "suppressed_count": debug_action_counts["suppressed"],
+                "selected_after_fallback_count": debug_action_counts["selected_after_fallback"],
                 "strong_same_event_count": debug_state["strength_counts"].get("strong_same_event", 0),
                 "moderate_same_event_count": debug_state["strength_counts"].get("moderate_same_event", 0),
                 "suppressed_by_bucket": debug_state["suppressed_by_bucket"],

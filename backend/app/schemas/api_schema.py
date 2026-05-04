@@ -29,6 +29,7 @@ class StoryCard(BaseModel):
 class HomeDebugSummary(BaseModel):
     selected_top_count: int = 0
     suppressed_count: int = 0
+    selected_after_fallback_count: int = 0
     strong_same_event_count: int = 0
     moderate_same_event_count: int = 0
     suppressed_by_bucket: dict[str, int] = Field(default_factory=dict)
