@@ -3,6 +3,11 @@ function HomepageDebugPanel({ debug }) {
     return null;
   }
 
+  const formatCounts = (counts) =>
+    Object.entries(counts || {})
+      .map(([label, count]) => `${label} ${count}`)
+      .join(' · ');
+
   const summary = debug.summary || {};
   const selectedTopStories = debug.selected_top_stories || [];
   const suppressed = debug.suppressed || [];
@@ -15,9 +20,19 @@ function HomepageDebugPanel({ debug }) {
         <section className="homepage-debug-section">
           <h3>Summary</h3>
           <ul className="homepage-debug-summary">
+            <li>Generated at: {summary.selection_generated_at || 'n/a'}</li>
+            <li>Candidates: {summary.candidate_count || 0}</li>
+            {summary.source_counts && Object.keys(summary.source_counts).length ? (
+              <li>Source counts: {formatCounts(summary.source_counts)}</li>
+            ) : null}
+            {summary.selected_source_counts && Object.keys(summary.selected_source_counts).length ? (
+              <li>Selected sources: {formatCounts(summary.selected_source_counts)}</li>
+            ) : null}
             <li>Selected top stories: {summary.selected_top_count || 0}</li>
-            <li>Suppressed: {summary.suppressed_count || 0}</li>
+            <li>Final suppressed: {(summary.final_suppressed_count ?? summary.suppressed_count) || 0}</li>
             <li>Selected after fallback: {summary.selected_after_fallback_count || 0}</li>
+            <li>Strong fallback: {summary.strong_selected_after_fallback_count || 0}</li>
+            <li>Moderate fallback: {summary.moderate_selected_after_fallback_count || 0}</li>
             <li>Strong: {summary.strong_same_event_count || 0}</li>
             <li>Moderate: {summary.moderate_same_event_count || 0}</li>
           </ul>

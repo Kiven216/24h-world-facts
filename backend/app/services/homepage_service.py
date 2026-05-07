@@ -30,6 +30,7 @@ MAX_REGION_STORIES = 3
 MAX_TOPIC_STORIES = 3
 MAX_DEBUG_SUPPRESSED = 50
 MAX_DEBUG_SUPPRESSED_PER_BUCKET = 15
+TOP_STORY_MIN_MODERATE_FALLBACK_COUNT = 6
 SAME_EVENT_MIN_SHARED_TOKENS = 3
 EVENT_SIGNATURE_SUMMARY_TOKEN_LIMIT = 20
 EVENT_SIGNATURE_STRONG_TIME_WINDOW_HOURS = 18
@@ -577,17 +578,39 @@ def _record_suppressed_candidate(
 
 def _finalize_debug_suppression_actions(debug_state: dict | None, selected_event_ids: set[str]) -> dict[str, int]:
     if not debug_state:
-        return {"suppressed": 0, "selected_after_fallback": 0}
+        return {
+            "suppressed": 0,
+            "selected_after_fallback": 0,
+            "strong_selected_after_fallback": 0,
+            "moderate_selected_after_fallback": 0,
+        }
 
-    counts = {"suppressed": 0, "selected_after_fallback": 0}
+    counts = {
+        "suppressed": 0,
+        "selected_after_fallback": 0,
+        "strong_selected_after_fallback": 0,
+        "moderate_selected_after_fallback": 0,
+    }
     for record in debug_state["suppressed"]:
         candidate_event_id = record.get("candidate", {}).get("event_id", "")
         if candidate_event_id and candidate_event_id in selected_event_ids:
             record["action"] = "selected_after_fallback"
             counts["selected_after_fallback"] += 1
+            if record.get("match_class") == "strong_same_event":
+                counts["strong_selected_after_fallback"] += 1
+            elif record.get("match_class") == "moderate_same_event":
+                counts["moderate_selected_after_fallback"] += 1
         else:
             record["action"] = "suppressed"
             counts["suppressed"] += 1
+    return counts
+
+
+def _count_cards_by_source(cards: list[CardRecord]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for card in cards:
+        source = _source_label(card) or "Unknown"
+        counts[source] = counts.get(source, 0) + 1
     return counts
 
 
@@ -874,27 +897,23 @@ def _select_cards_with_suppression(
         ({"exact_only": False, "allowed_classes": {None, "related_theme"}, "enforce_topic_caps": True}),
         ({"exact_only": False, "allowed_classes": {None, "related_theme"}, "enforce_topic_caps": False}),
         ({"exact_only": False, "allowed_classes": {None, "related_theme", "moderate_same_event"}, "enforce_topic_caps": False}),
-        ({"exact_only": True, "allowed_classes": {None, "related_theme", "moderate_same_event", "strong_same_event"}, "enforce_topic_caps": False}),
     )
 
     for selection_pass in selection_passes:
         for card in sorted_cards:
             if card.event_id in selected_ids:
                 continue
-            if selection_pass["exact_only"]:
+            can_select, match = can_take(card, selection_pass["allowed_classes"], selection_pass["enforce_topic_caps"])
+            if can_select:
                 add_card(card)
-            else:
-                can_select, match = can_take(card, selection_pass["allowed_classes"], selection_pass["enforce_topic_caps"])
-                if can_select:
-                    add_card(card)
-                elif match and selection_pass["allowed_classes"] == {None, "related_theme"}:
-                    _record_suppressed_candidate(
-                        debug_state,
-                        bucket_name,
-                        card,
-                        match["candidate_signature"],
-                        match,
-                    )
+            elif match and selection_pass["allowed_classes"] == {None, "related_theme"}:
+                _record_suppressed_candidate(
+                    debug_state,
+                    bucket_name,
+                    card,
+                    match["candidate_signature"],
+                    match,
+                )
             if len(selected_cards) >= max_items:
                 return selected_cards
 
@@ -922,11 +941,15 @@ def _select_top_stories_with_guardrail(
         selected_topic_counts[card.topic] = selected_topic_counts.get(card.topic, 0) + 1
 
     selection_passes = (
-        {None, "related_theme", "moderate_same_event"},
-        {None, "related_theme", "moderate_same_event", "strong_same_event"},
+        {"allowed_classes": {None, "related_theme"}, "minimum_selected_before_skip": 0},
+        {"allowed_classes": {None, "related_theme", "moderate_same_event"}, "minimum_selected_before_skip": TOP_STORY_MIN_MODERATE_FALLBACK_COUNT},
     )
 
-    for allowed_classes in selection_passes:
+    for selection_pass in selection_passes:
+        allowed_classes = selection_pass["allowed_classes"]
+        minimum_selected_before_skip = selection_pass["minimum_selected_before_skip"]
+        if len(selected_cards) >= minimum_selected_before_skip and minimum_selected_before_skip:
+            continue
         while len(selected_cards) < MAX_TOP_STORIES:
             candidates = []
             for card in cards:
@@ -1025,6 +1048,7 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
     by_topic = _blank_buckets(TOPIC_BUCKETS)
     top_story_cards: list[CardRecord] = []
     watchlist_cards: list[CardRecord] = []
+    selection_generated_at = datetime.now().astimezone().replace(microsecond=0).isoformat()
 
     for card in cards:
         if card.region not in by_region:
@@ -1052,6 +1076,8 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
     top_stories = enrich_top_stories_with_llm_explanations(top_stories, str(meta.get("last_updated", "")))
     downstream_blocked_ids = set(top_story_ids)
     downstream_reference_signatures = list(top_story_signatures)
+    selected_topic_cards_all: list[CardRecord] = []
+    selected_region_cards_all: list[CardRecord] = []
 
     limited_topic = {}
     for name, topic_cards in by_topic.items():
@@ -1065,6 +1091,7 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
             bucket_name=f"by_topic:{name}",
         )
         limited_topic[name] = [card.to_api_dict() for card in selected_topic_cards]
+        selected_topic_cards_all.extend(selected_topic_cards)
         downstream_blocked_ids.update(card.event_id for card in selected_topic_cards)
         downstream_reference_signatures.extend(_event_signatures_from_cards(selected_topic_cards))
 
@@ -1080,6 +1107,7 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
             bucket_name=f"by_region:{name}",
         )
         limited_region[name] = [card.to_api_dict() for card in selected_region_cards]
+        selected_region_cards_all.extend(selected_region_cards)
         downstream_blocked_ids.update(card.event_id for card in selected_region_cards)
         downstream_reference_signatures.extend(_event_signatures_from_cards(selected_region_cards))
 
@@ -1093,6 +1121,8 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
         bucket_name="watchlist",
     )
     watchlist = [card.to_api_dict() for card in selected_watchlist_cards]
+    final_selected_cards = selected_top_stories + selected_topic_cards_all + selected_region_cards_all + selected_watchlist_cards
+    selected_cards_by_event_id = {card.event_id: card for card in final_selected_cards}
 
     exposed_event_ids = top_story_ids | {item["event_id"] for item in watchlist}
     for bucket_items in limited_region.values():
@@ -1114,9 +1144,16 @@ def build_homepage_payload(include_debug: bool = False) -> dict:
     if include_debug and debug_state is not None:
         payload["debug"] = {
             "summary": {
+                "selection_generated_at": selection_generated_at,
+                "candidate_count": len(cards),
+                "source_counts": _count_cards_by_source(cards),
+                "selected_source_counts": _count_cards_by_source(list(selected_cards_by_event_id.values())),
                 "selected_top_count": len(selected_top_stories),
                 "suppressed_count": debug_action_counts["suppressed"],
+                "final_suppressed_count": debug_action_counts["suppressed"],
                 "selected_after_fallback_count": debug_action_counts["selected_after_fallback"],
+                "strong_selected_after_fallback_count": debug_action_counts["strong_selected_after_fallback"],
+                "moderate_selected_after_fallback_count": debug_action_counts["moderate_selected_after_fallback"],
                 "strong_same_event_count": debug_state["strength_counts"].get("strong_same_event", 0),
                 "moderate_same_event_count": debug_state["strength_counts"].get("moderate_same_event", 0),
                 "suppressed_by_bucket": debug_state["suppressed_by_bucket"],
