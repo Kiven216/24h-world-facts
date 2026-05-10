@@ -108,6 +108,76 @@ CONFLICT_SIGNAL_TERMS = (
     "territorial",
     "blockade",
 )
+ELECTION_TRIGGER_TERMS = (
+    "election",
+    "vote",
+    "ballot",
+    "campaign",
+    "by-election",
+    "by election",
+    "referendum",
+    "runoff",
+)
+HIGH_IMPACT_ELECTION_TERMS = (
+    "presidential election",
+    "general election",
+    "parliamentary election",
+    "national election",
+    "prime minister",
+    "government collapse",
+    "coalition collapse",
+    "referendum",
+    "constitutional referendum",
+    "runoff",
+    "fraud allegations",
+    "election violence",
+    "mass protest",
+    "military involvement",
+    "peace process",
+    "war policy",
+    "trade policy",
+    "immigration policy",
+    "energy policy",
+)
+HIGH_IMPACT_ELECTION_SPILLOVER_TERMS = (
+    "national government",
+    "foreign policy",
+    "constitutional crisis",
+    "major policy shift",
+    "regional instability",
+)
+MEDIUM_IMPACT_ELECTION_TERMS = (
+    "mayoral election",
+    "state election",
+    "provincial election",
+    "regional election",
+    "swing state",
+    "key state",
+    "major city",
+    "capital city",
+    "london",
+    "new york",
+    "paris",
+    "tokyo",
+    "seoul",
+    "berlin",
+    "delhi",
+)
+LOW_IMPACT_ELECTION_TERMS = (
+    "council election",
+    "borough election",
+    "ward election",
+    "county council",
+    "municipal election",
+    "local council",
+    "local election",
+    "by-election",
+    "by election",
+    "school board",
+    "town council",
+    "constituency-level campaign",
+    "small city election",
+)
 GENERAL_HIGH_IMPACT_TERMS = (
     "election",
     "court",
@@ -128,6 +198,9 @@ TOP_STORY_TOPIC_ENTRY_THRESHOLDS = {
     "Economy / Markets": 8.15,
     "Business / Tech / Industry": 8.05,
 }
+LOW_IMPACT_ELECTION_SCORE_PENALTY = 2.0
+MEDIUM_IMPACT_ELECTION_SCORE_PENALTY = 0.8
+MEDIUM_IMPACT_ELECTION_TOP_THRESHOLD_EXTRA = 0.8
 
 
 def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
@@ -145,10 +218,26 @@ def _count_term_hits(text: str, keywords: tuple[str, ...]) -> int:
     return sum(1 for keyword in keywords if _contains_any(text, (keyword,)))
 
 
-def _score_article(topic: str, title: str) -> float:
+def _election_importance_level(headline: str, summary: str, topic: str) -> str:
+    lowered_text = f"{headline} {summary}".lower()
+    if not _contains_any(lowered_text, ELECTION_TRIGGER_TERMS):
+        return "none"
+    if _contains_any(lowered_text, HIGH_IMPACT_ELECTION_TERMS) or _contains_any(lowered_text, HIGH_IMPACT_ELECTION_SPILLOVER_TERMS):
+        return "high"
+    if _contains_any(lowered_text, LOW_IMPACT_ELECTION_TERMS):
+        return "low"
+    if _contains_any(lowered_text, MEDIUM_IMPACT_ELECTION_TERMS):
+        return "medium"
+    if topic == "Policy / Politics":
+        return "medium"
+    return "medium"
+
+
+def _score_article(topic: str, title: str, summary: str) -> tuple[float, str]:
     lowered_title = title.lower()
     # Temporary 10-point display scale until event-level scoring replaces article-level heuristics.
     base_score = TOPIC_BASE_SCORES.get(topic, 8.0)
+    election_importance = _election_importance_level(title, summary, topic)
 
     if _contains_any(lowered_title, GENERAL_HIGH_IMPACT_TERMS):
         base_score += 0.25
@@ -178,7 +267,12 @@ def _score_article(topic: str, title: str) -> float:
         if signal_hits >= 2:
             base_score += 0.1
 
-    return round(min(max(base_score, 6.5), 9.2), 1)
+    if election_importance == "low":
+        base_score -= LOW_IMPACT_ELECTION_SCORE_PENALTY
+    elif election_importance == "medium":
+        base_score -= MEDIUM_IMPACT_ELECTION_SCORE_PENALTY
+
+    return round(min(max(base_score, 6.5), 9.2), 1), election_importance
 
 
 def _derive_status(title: str) -> str:
@@ -192,8 +286,12 @@ def _should_watch(title: str, topic: str, score: float) -> bool:
     return topic == "Conflict / Security" or (score >= 8.6 and any(keyword in lowered_title for keyword in watch_terms))
 
 
-def _is_top_story_candidate(topic: str, score: float) -> bool:
+def _is_top_story_candidate(topic: str, score: float, election_importance: str) -> bool:
+    if election_importance == "low":
+        return False
     topic_threshold = TOP_STORY_TOPIC_ENTRY_THRESHOLDS.get(topic, TOP_STORY_SCORE_THRESHOLD)
+    if election_importance == "medium":
+        topic_threshold += MEDIUM_IMPACT_ELECTION_TOP_THRESHOLD_EXTRA
     return score >= topic_threshold
 
 
@@ -207,7 +305,11 @@ def run_publish() -> dict[str, int]:
         if published_at < cutoff:
             continue
 
-        score = _score_article(row["topic_guess"], row["title"])
+        score, election_importance = _score_article(
+            row["topic_guess"],
+            row["title"],
+            row["excerpt"],
+        )
         cards.append(
             {
                 "event_id": f"{row['source']}:{row['article_normalized_id']}",
@@ -222,7 +324,7 @@ def run_publish() -> dict[str, int]:
                 "updated_at": row["filtered_at"],
                 "article_url": row["url_canonical"],
                 "source_list": [_source_label(row["source"])],
-                "is_top_story": _is_top_story_candidate(row["topic_guess"], score),
+                "is_top_story": _is_top_story_candidate(row["topic_guess"], score, election_importance),
                 "is_watchlist": _should_watch(row["title"], row["topic_guess"], score),
             }
         )
