@@ -4,7 +4,7 @@ function SectionBlock({ title, subtitle, children, emptyMessage = 'No stories ma
       <div className="section-heading">
         <div>
           <h2>{title}</h2>
-          <p>{subtitle}</p>
+          {subtitle ? <p>{subtitle}</p> : null}
         </div>
       </div>
       {children || <div className="empty-state">{emptyMessage}</div>}

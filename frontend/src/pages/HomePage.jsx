@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import FilterBar from '../components/FilterBar';
 import HeaderBar from '../components/HeaderBar';
 import HomepageDebugPanel from '../components/HomepageDebugPanel';
 import RefreshButton from '../components/RefreshButton';
@@ -9,83 +8,139 @@ import StoryCard from '../components/StoryCard';
 import { fetchHomeData, triggerBackendRefresh } from '../services/api';
 import { mockHomeData } from '../mock/mockHomeData';
 
-const REGION_OPTIONS = ['All', 'North America', 'Europe', 'Japan / East Asia', 'Global Markets'];
-const TOPIC_OPTIONS = ['All', 'Policy / Politics', 'Economy / Markets', 'Business / Tech / Industry', 'Conflict / Security'];
-const CONFIDENCE_OPTIONS = ['All', 'Official', 'Confirmed', 'Widely Reported', 'Developing', 'Monitoring'];
-const SORT_OPTIONS = ['Importance', 'Latest'];
+const HOME_TABS = [
+  { key: 'top', label: 'Top' },
+  { key: 'topic', label: 'By Topic' },
+  { key: 'region', label: 'By Region' },
+  { key: 'watchlist', label: 'Watchlist' },
+];
+
 const TOPIC_SECTION_ORDER = ['Economy / Markets', 'Business / Tech / Industry', 'Policy / Politics', 'Conflict / Security'];
 
-const DEFAULT_FILTERS = {
-  region: 'All',
-  topic: 'All',
-  confidence: 'All',
-  sortBy: 'Importance',
+const BRIEFING_STAT_ICONS = {
+  top: 'star',
+  topic: 'grid',
+  region: 'globe',
+  watchlist: 'activity',
 };
 
-function normalizeConfidence(status) {
-  const normalized = String(status || '').trim().toLowerCase();
-  const confidenceMap = {
-    official: 'Official',
-    confirmed: 'Confirmed',
-    'widely reported': 'Widely Reported',
-    widely_reported: 'Widely Reported',
-    developing: 'Developing',
-    monitoring: 'Monitoring',
-  };
+function BriefingStatIcon({ name }) {
+  if (name === 'star') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 3.5l2.7 5.48 6.05.88-4.38 4.27 1.03 6.02L12 17.31l-5.4 2.84 1.03-6.02-4.38-4.27 6.05-.88L12 3.5z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
 
-  return confidenceMap[normalized] || 'Confirmed';
+  if (name === 'grid') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="6.5" height="6.5" rx="1.4" fill="none" stroke="currentColor" strokeWidth="2" />
+        <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4" fill="none" stroke="currentColor" strokeWidth="2" />
+        <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4" fill="none" stroke="currentColor" strokeWidth="2" />
+        <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4" fill="none" stroke="currentColor" strokeWidth="2" />
+      </svg>
+    );
+  }
+
+  if (name === 'globe') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="2" />
+        <ellipse cx="12" cy="12" rx="3.8" ry="8.5" fill="none" stroke="currentColor" strokeWidth="2" />
+        <path d="M3.5 12h17M5.6 8.1h12.8M5.6 15.9h12.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 13h3l2.1-5.5L13 18l2.5-7h4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function getStoryTimestamp(story) {
   return Date.parse(story.published_at || story.updated_at || '') || 0;
 }
 
-function sortStories(stories, sortBy) {
-  const sortedStories = [...stories];
-
-  sortedStories.sort((left, right) => {
-    if (sortBy === 'Latest') {
-      return getStoryTimestamp(right) - getStoryTimestamp(left);
+function sortStories(stories) {
+  const copied = [...stories];
+  copied.sort((left, right) => {
+    const byScore = (right.importance_score || 0) - (left.importance_score || 0);
+    if (byScore !== 0) {
+      return byScore;
     }
+    return getStoryTimestamp(right) - getStoryTimestamp(left);
+  });
+  return copied;
+}
 
-    return (right.importance_score || 0) - (left.importance_score || 0);
+function buildTopicStories(byTopic) {
+  const orderedEntries = Object.entries(byTopic || {}).sort(([left], [right]) => {
+    const leftIndex = TOPIC_SECTION_ORDER.indexOf(left);
+    const rightIndex = TOPIC_SECTION_ORDER.indexOf(right);
+    const normalizedLeft = leftIndex === -1 ? TOPIC_SECTION_ORDER.length : leftIndex;
+    const normalizedRight = rightIndex === -1 ? TOPIC_SECTION_ORDER.length : rightIndex;
+    return normalizedLeft - normalizedRight;
   });
 
-  return sortedStories;
+  return orderedEntries.flatMap(([topicName, stories]) =>
+    sortStories(Array.isArray(stories) ? stories : []).map((story) => ({
+      ...story,
+      _contextLabel: topicName,
+    })),
+  );
 }
 
-function matchesFilters(story, filters) {
-  const matchesRegion = filters.region === 'All' || story.region === filters.region;
-  const matchesTopic = filters.topic === 'All' || story.topic === filters.topic;
-  const matchesConfidence = filters.confidence === 'All' || normalizeConfidence(story.status) === filters.confidence;
-
-  return matchesRegion && matchesTopic && matchesConfidence;
+function buildRegionStories(byRegion) {
+  return Object.entries(byRegion || {}).flatMap(([regionName, stories]) =>
+    sortStories(Array.isArray(stories) ? stories : []).map((story) => ({
+      ...story,
+      _contextLabel: regionName,
+    })),
+  );
 }
 
-function filterAndSortStories(stories, filters) {
-  return sortStories(stories.filter((story) => matchesFilters(story, filters)), filters.sortBy);
-}
-
-function buildGroupedStories(groupedStories, filters, category) {
-  const selectedValue = category === 'region' ? filters.region : filters.topic;
-  const visibleEntries = Object.entries(groupedStories).filter(([groupName]) => selectedValue === 'All' || groupName === selectedValue);
-  const orderedEntries = category === 'topic'
-    ? [...visibleEntries].sort(([leftName], [rightName]) => {
-        const leftIndex = TOPIC_SECTION_ORDER.indexOf(leftName);
-        const rightIndex = TOPIC_SECTION_ORDER.indexOf(rightName);
-        const normalizedLeftIndex = leftIndex === -1 ? TOPIC_SECTION_ORDER.length : leftIndex;
-        const normalizedRightIndex = rightIndex === -1 ? TOPIC_SECTION_ORDER.length : rightIndex;
-        return normalizedLeftIndex - normalizedRightIndex;
-      })
-    : visibleEntries;
-
-  return orderedEntries
-    .map(([groupName, stories]) => [groupName, filterAndSortStories(stories, filters)])
-    .filter(([, stories]) => stories.length > 0);
-}
-
-function buildActiveSummary(filters) {
-  return `${filters.region} / ${filters.topic} / ${filters.confidence} / ${filters.sortBy}`;
+function buildBriefingStats({ topCount, topicStoryCount, regionStoryCount, watchlistCount }) {
+  return [
+    {
+      key: 'top',
+      icon: BRIEFING_STAT_ICONS.top,
+      value: topCount,
+      label: 'Top Stories',
+      descriptor: 'Priority',
+    },
+    {
+      key: 'topic',
+      icon: BRIEFING_STAT_ICONS.topic,
+      value: topicStoryCount,
+      label: 'Topics',
+      descriptor: 'Coverage',
+    },
+    {
+      key: 'region',
+      icon: BRIEFING_STAT_ICONS.region,
+      value: regionStoryCount,
+      label: 'Regions',
+      descriptor: 'Spread',
+    },
+    {
+      key: 'watchlist',
+      icon: BRIEFING_STAT_ICONS.watchlist,
+      value: watchlistCount,
+      label: 'Watchlist',
+      descriptor: 'Follow-up',
+    },
+  ];
 }
 
 function HomePage() {
@@ -94,19 +149,64 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [activeTab, setActiveTab] = useState('top');
+  const [expandedByTab, setExpandedByTab] = useState({
+    top: null,
+    topic: null,
+    region: null,
+    watchlist: null,
+  });
 
-  const topStories = filterAndSortStories(homeData.top_stories, filters);
-  const watchlistStories = filterAndSortStories(homeData.watchlist, filters);
-  const regionSections = buildGroupedStories(homeData.by_region, filters, 'region');
-  const topicSections = buildGroupedStories(homeData.by_topic, filters, 'topic');
+  const topStories = useMemo(() => sortStories(Array.isArray(homeData.top_stories) ? homeData.top_stories : []), [homeData.top_stories]);
+  const topicStories = useMemo(() => buildTopicStories(homeData.by_topic), [homeData.by_topic]);
+  const regionStories = useMemo(() => buildRegionStories(homeData.by_region), [homeData.by_region]);
+  const watchlistStories = useMemo(() => sortStories(Array.isArray(homeData.watchlist) ? homeData.watchlist : []), [homeData.watchlist]);
+  const briefingStats = useMemo(
+    () =>
+      buildBriefingStats({
+        topCount: topStories.length,
+        topicStoryCount: topicStories.length,
+        regionStoryCount: regionStories.length,
+        watchlistCount: watchlistStories.length,
+      }),
+    [topStories.length, topicStories.length, regionStories.length, watchlistStories.length],
+  );
 
-  const handleFilterChange = (field, value) => {
-    setFilters((currentFilters) => ({
-      ...currentFilters,
-      [field]: value,
-    }));
+  const storiesByTab = useMemo(
+    () => ({
+      top: topStories,
+      topic: topicStories,
+      region: regionStories,
+      watchlist: watchlistStories,
+    }),
+    [topStories, topicStories, regionStories, watchlistStories],
+  );
+
+  const tabMeta = {
+    top: {
+      title: 'Top Stories',
+      subtitle: '',
+      className: 'section-block-featured section-block-bare',
+    },
+    topic: {
+      title: 'By Topic',
+      subtitle: '',
+      className: 'section-block-minimal',
+    },
+    region: {
+      title: 'By Region',
+      subtitle: '',
+      className: 'section-block-minimal',
+    },
+    watchlist: {
+      title: 'Watchlist',
+      subtitle: '',
+      className: 'section-block-watchlist',
+    },
   };
+
+  const activeStories = storiesByTab[activeTab] || [];
+  const activeExpandedId = expandedByTab[activeTab];
 
   const loadHomeData = async ({ isManualRefresh = false } = {}) => {
     let refreshError = '';
@@ -122,7 +222,7 @@ function HomePage() {
         try {
           await triggerBackendRefresh();
         } catch (requestError) {
-          refreshError = requestError.message || 'Unable to refresh from BBC.';
+          refreshError = requestError.message || 'Unable to refresh backend data.';
         }
       }
 
@@ -137,112 +237,96 @@ function HomePage() {
     }
   };
 
+  const toggleStory = (tabKey, storyId) => {
+    setExpandedByTab((current) => ({
+      ...current,
+      [tabKey]: current[tabKey] === storyId ? null : storyId,
+    }));
+  };
+
   useEffect(() => {
     loadHomeData();
   }, [debugEnabled]);
+
+  useEffect(() => {
+    setExpandedByTab((current) => {
+      const next = { ...current };
+      for (const tab of HOME_TABS) {
+        const stories = storiesByTab[tab.key] || [];
+        const firstId = stories[0]?.event_id || null;
+        const existingId = next[tab.key];
+        const stillExists = existingId && stories.some((story) => story.event_id === existingId);
+        if (!stillExists) {
+          next[tab.key] = firstId;
+        }
+      }
+      return next;
+    });
+  }, [storiesByTab]);
 
   return (
     <div className="page-shell">
       <div className="page-backdrop" />
       <main className="page-content">
-        <HeaderBar
-          meta={homeData.meta}
-          action={<RefreshButton loading={refreshing} onRefresh={() => loadHomeData({ isManualRefresh: true })} label="Refresh feed" />}
-        />
-
-        <div className="toolbar-row">
-          <FilterBar
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            summary={buildActiveSummary(filters)}
-            options={{
-              region: REGION_OPTIONS,
-              topic: TOPIC_OPTIONS,
-              confidence: CONFIDENCE_OPTIONS,
-              sortBy: SORT_OPTIONS,
-            }}
-          />
-        </div>
+        <HeaderBar meta={homeData.meta} action={<RefreshButton loading={refreshing} onRefresh={() => loadHomeData({ isManualRefresh: true })} />} />
 
         {error ? <div className="status-banner">Latest refresh notice: {error}</div> : null}
         {loading ? <div className="status-banner">Loading latest homepage data...</div> : null}
 
+        <section className="briefing-summary-card">
+          <div className="briefing-summary-head">
+            <h2>Today&apos;s Briefing</h2>
+            <p>Key global developments in the past 24 hours.</p>
+          </div>
+          <div className="briefing-stat-grid">
+            {briefingStats.map((stat) => (
+              <article key={stat.key} className="briefing-stat">
+                <div className="briefing-stat-value">
+                  <span className={`briefing-stat-icon-badge briefing-stat-icon-badge-${stat.key}`}>
+                    <span className="briefing-stat-icon" aria-hidden="true">
+                      <BriefingStatIcon name={stat.icon} />
+                    </span>
+                  </span>
+                  <strong>{stat.value}</strong>
+                </div>
+                <span>{stat.label}</span>
+                <small>{stat.descriptor}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <nav className="home-tabs" aria-label="Homepage sections">
+          {HOME_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`home-tab ${activeTab === tab.key ? 'home-tab-active' : ''}`.trim()}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
         <SectionBlock
-          title="Top Stories"
-          subtitle="Most important items for the current 24-hour window."
-          className="section-block-featured section-block-bare"
+          title={tabMeta[activeTab].title}
+          subtitle={tabMeta[activeTab].subtitle}
+          className={tabMeta[activeTab].className}
+          emptyMessage="No stories available in this section right now."
         >
-          {topStories.length > 0 ? (
-            <div className="top-stories-grid">
-              {topStories.map((story, index) => (
+          {activeStories.length > 0 ? (
+            <div className={activeTab === 'top' ? 'top-tab-list' : 'tab-list'}>
+              {activeStories.map((story, index) => (
                 <StoryCard
-                  key={story.event_id}
+                  key={`${activeTab}-${story.event_id}`}
                   story={story}
-                  compact={index > 0}
-                  variant={index === 0 ? 'lead' : 'supporting'}
+                  rank={index + 1}
+                  isExpanded={activeExpandedId === story.event_id}
+                  onToggle={(storyId) => toggleStory(activeTab, storyId)}
+                  contextLabel={story._contextLabel || ''}
+                  isHero={activeTab === 'top' && index === 0}
                 />
-              ))}
-            </div>
-          ) : null}
-        </SectionBlock>
-
-        <SectionBlock
-          title="By Topic"
-          subtitle="Policy, market, business, and security lenses."
-          className="section-block-minimal"
-        >
-          {topicSections.length > 0 ? (
-            <div className="group-stack">
-              {topicSections.map(([topic, stories]) => (
-                <section key={topic} className="subsection-block">
-                  <div className="subsection-heading">
-                    <h3>{topic}</h3>
-                    <span>{stories.length} stories</span>
-                  </div>
-                  <div className="story-grid">
-                    {stories.map((story) => (
-                      <StoryCard key={`${topic}-${story.event_id}`} story={story} compact />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          ) : null}
-        </SectionBlock>
-
-        <SectionBlock
-          title="By Region"
-          subtitle="Regional grouping with limited overlap by design."
-          className="section-block-minimal"
-        >
-          {regionSections.length > 0 ? (
-            <div className="group-stack">
-              {regionSections.map(([region, stories]) => (
-                <section key={region} className="subsection-block">
-                  <div className="subsection-heading">
-                    <h3>{region}</h3>
-                    <span>{stories.length} stories</span>
-                  </div>
-                  <div className="story-grid">
-                    {stories.map((story) => (
-                      <StoryCard key={`${region}-${story.event_id}`} story={story} compact />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          ) : null}
-        </SectionBlock>
-
-        <SectionBlock
-          title="Watchlist"
-          subtitle="Items worth monitoring for follow-through or second-order impact."
-          className="section-block-watchlist"
-        >
-          {watchlistStories.length > 0 ? (
-            <div className="story-grid">
-              {watchlistStories.map((story) => (
-                <StoryCard key={`watch-${story.event_id}`} story={story} />
               ))}
             </div>
           ) : null}

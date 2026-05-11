@@ -1,19 +1,5 @@
 import { useState } from 'react';
 
-function formatStatusLabel(status) {
-  const normalizedStatus = String(status || '').trim().toLowerCase();
-  const labelMap = {
-    official: 'Official',
-    confirmed: 'Confirmed',
-    'widely reported': 'Widely Reported',
-    widely_reported: 'Widely Reported',
-    developing: 'Developing',
-    monitoring: 'Monitoring',
-  };
-
-  return labelMap[normalizedStatus] || status;
-}
-
 function formatPublishedTime(value) {
   const timestamp = Date.parse(value || '');
   if (!timestamp) {
@@ -35,21 +21,59 @@ function formatPublishedTime(value) {
   });
 }
 
-function StoryCard({ story, compact = false, variant = 'default' }) {
+function uniqueTags(tags) {
+  const seen = new Set();
+  const output = [];
+  for (const tag of tags) {
+    const normalized = String(tag || '').trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    output.push(normalized);
+  }
+  return output;
+}
+
+function StoryCard({
+  story,
+  isExpanded = false,
+  onToggle = null,
+  rank = null,
+  contextLabel = '',
+  isHero = false,
+}) {
   const [signalsOpen, setSignalsOpen] = useState(false);
-  const timeLabel = formatPublishedTime(story.published_at || story.updated_at);
   const articleUrl = String(story.article_url || '').trim();
   const isLinked = articleUrl.startsWith('http://') || articleUrl.startsWith('https://');
   const signalTags = Array.isArray(story.signal_tags) ? story.signal_tags : [];
-  // The UI intentionally keeps a 10-point display scale even though the raw field is named importance_score.
-  const displayScore = Number(story.importance_score || 0).toFixed(1);
+  const sourceLabel = Array.isArray(story.source_list) ? story.source_list.join(' · ') : 'Unknown source';
+  const timeLabel = formatPublishedTime(story.published_at || story.updated_at) || 'Time unavailable';
+  const tags = uniqueTags([contextLabel, story.topic, story.region]);
+  const displayTags = tags.slice(0, isExpanded ? 3 : 2);
+  const scoreLabel = Number(story.importance_score || 0).toFixed(1);
+
+  const onCardClick = () => {
+    if (onToggle) {
+      onToggle(story.event_id);
+    }
+  };
+
+  const onCardKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onCardClick();
+    }
+  };
+
   const headlineNode = isLinked ? (
     <a
       className="story-card-link"
       href={articleUrl}
       target="_blank"
       rel="noreferrer"
-      title={`Open original article from ${story.source_list.join(' / ') || 'source'}`}
+      title={`Open original article from ${sourceLabel}`}
+      onClick={(event) => event.stopPropagation()}
     >
       {story.headline}
     </a>
@@ -57,20 +81,59 @@ function StoryCard({ story, compact = false, variant = 'default' }) {
     story.headline
   );
 
+  if (!isExpanded) {
+    return (
+      <article
+        className={`story-card story-card-compact-row ${isHero ? 'story-card-hero-compact' : ''}`.trim()}
+        onClick={onCardClick}
+        onKeyDown={onCardKeyDown}
+        role="button"
+        tabIndex={0}
+      >
+        <div className="compact-rank">{rank || '-'}</div>
+        <div className="compact-content">
+          <h3>{headlineNode}</h3>
+          <div className="story-context story-context-inline">
+            {displayTags.map((tag) => (
+              <span key={`${story.event_id}-${tag}`}>{tag}</span>
+            ))}
+          </div>
+          <div className="story-footer">
+            <span>{timeLabel}</span>
+            <span>{sourceLabel}</span>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
-    <article className={`story-card ${compact ? 'story-card-compact' : ''} ${variant !== 'default' ? `story-card-${variant}` : ''}`.trim()}>
+    <article
+      className={`story-card ${isHero ? 'story-card-hero' : 'story-card-expanded'}`.trim()}
+      onClick={onCardClick}
+      onKeyDown={onCardKeyDown}
+      role="button"
+      tabIndex={0}
+    >
       <div className="story-card-topline">
-        <span>{formatStatusLabel(story.status)}</span>
-        <span>Score {displayScore}</span>
+        <span className="story-badge">{isHero ? 'Top Story' : `Story #${rank || '-'}`}</span>
+        <span className="story-meta-time">{timeLabel}</span>
       </div>
 
       <h3>{headlineNode}</h3>
-      <p className="story-summary">{story.summary}</p>
-      {story.why_it_matters ? <p className="story-impact">{story.why_it_matters}</p> : null}
+      {story.summary ? <p className="story-summary">{story.summary}</p> : null}
+
+      {story.why_it_matters ? (
+        <div className="story-why-box">
+          <span className="story-why-label">Why it matters</span>
+          <p className="story-impact">{story.why_it_matters}</p>
+        </div>
+      ) : null}
 
       <div className="story-context">
-        <span>{story.region}</span>
-        <span>{story.topic}</span>
+        {displayTags.map((tag) => (
+          <span key={`${story.event_id}-${tag}`}>{tag}</span>
+        ))}
       </div>
 
       {signalTags.length > 0 ? (
@@ -78,7 +141,10 @@ function StoryCard({ story, compact = false, variant = 'default' }) {
           <button
             type="button"
             className="story-signals-toggle"
-            onClick={() => setSignalsOpen((currentValue) => !currentValue)}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSignalsOpen((current) => !current);
+            }}
             aria-expanded={signalsOpen}
           >
             Signals · {signalTags.length}
@@ -96,8 +162,8 @@ function StoryCard({ story, compact = false, variant = 'default' }) {
       ) : null}
 
       <div className="story-footer">
-        <span>{timeLabel || 'Time unavailable'}</span>
-        <span>{story.source_list.join(' · ')}</span>
+        <span className="story-meta-score">Score {scoreLabel}</span>
+        <span className="story-meta-source">{sourceLabel}</span>
       </div>
     </article>
   );

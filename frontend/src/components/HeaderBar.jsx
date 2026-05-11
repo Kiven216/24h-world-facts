@@ -21,16 +21,11 @@ function HeaderBar({ meta, action = null }) {
   return (
     <header className="header-bar">
       <div className="header-copy-block">
-        <p className="eyebrow">24-Hour Briefing</p>
         <h1>24H World Facts</h1>
+        <p className="header-subtitle">Global Intelligence Briefing</p>
+        <p className="header-updated">Updated {formatMetaTime(meta.last_updated)}</p>
       </div>
       <div className="header-side">
-        <div className="header-meta">
-          <div className="header-meta-card">
-            <span>Last updated</span>
-            <strong>{formatMetaTime(meta.last_updated)}</strong>
-          </div>
-        </div>
         {action ? <div className="header-action">{action}</div> : null}
       </div>
     </header>
