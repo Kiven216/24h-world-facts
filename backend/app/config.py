@@ -78,6 +78,7 @@ class Settings:
     enable_signal_source_cnbc: bool = field(default_factory=lambda: _get_env_bool("ENABLE_SIGNAL_SOURCE_CNBC", True))
     enable_signal_source_oilprice: bool = field(default_factory=lambda: _get_env_bool("ENABLE_SIGNAL_SOURCE_OILPRICE", False))
     signal_pool_cache_path_env: str = field(default_factory=lambda: os.getenv("SIGNAL_POOL_CACHE_PATH", ""))
+    admin_refresh_token: str = field(default_factory=lambda: os.getenv("ADMIN_REFRESH_TOKEN", "").strip())
     llm_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("LLM_TIMEOUT_SECONDS", "6")))
     llm_cache_path_env: str = field(default_factory=lambda: os.getenv("LLM_CACHE_PATH", ""))
 
