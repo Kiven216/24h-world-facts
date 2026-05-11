@@ -72,6 +72,12 @@ class Settings:
         default_factory=lambda: _get_env_bool("ENABLE_LLM_WHY_IT_MATTERS", _default_enable_llm_why_it_matters())
     )
     enable_dw_source: bool = field(default_factory=lambda: _get_env_bool("ENABLE_DW_SOURCE", False))
+    enable_signal_pool: bool = field(default_factory=lambda: _get_env_bool("ENABLE_SIGNAL_POOL", True))
+    signal_pool_window_hours: int = field(default_factory=lambda: int(os.getenv("SIGNAL_POOL_WINDOW_HOURS", "24")))
+    enable_signal_source_coindesk: bool = field(default_factory=lambda: _get_env_bool("ENABLE_SIGNAL_SOURCE_COINDESK", True))
+    enable_signal_source_cnbc: bool = field(default_factory=lambda: _get_env_bool("ENABLE_SIGNAL_SOURCE_CNBC", True))
+    enable_signal_source_oilprice: bool = field(default_factory=lambda: _get_env_bool("ENABLE_SIGNAL_SOURCE_OILPRICE", False))
+    signal_pool_cache_path_env: str = field(default_factory=lambda: os.getenv("SIGNAL_POOL_CACHE_PATH", ""))
     llm_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("LLM_TIMEOUT_SECONDS", "6")))
     llm_cache_path_env: str = field(default_factory=lambda: os.getenv("LLM_CACHE_PATH", ""))
 
@@ -111,6 +117,10 @@ class Settings:
     @property
     def llm_cache_path(self) -> Path:
         return self._resolve_path(self.llm_cache_path_env, self.project_root / "data" / "llm_why_it_matters_cache.json")
+
+    @property
+    def signal_pool_cache_path(self) -> Path:
+        return self._resolve_path(self.signal_pool_cache_path_env, self.project_root / "data" / "signal_pool_cache.json")
 
 
 settings = Settings()

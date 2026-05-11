@@ -78,3 +78,36 @@ class HomeResponse(BaseModel):
     by_topic: dict[str, list[StoryCard]] = Field(default_factory=dict)
     watchlist: list[StoryCard] = Field(default_factory=list)
     debug: HomeDebugPayload | None = None
+
+
+class SignalPoolMeta(BaseModel):
+    generated_at: str
+    window_hours: int = 24
+    item_count: int = 0
+    source_count: int = 0
+    status: str = "empty"
+    warnings: list[str] = Field(default_factory=list)
+
+
+class SignalPoolItem(BaseModel):
+    id: str
+    published_at: str
+    source_name: str
+    source_url: str
+    title: str
+    summary: str
+    bucket: str
+    signal_type: str
+    direction: str
+    horizon: str
+    confidence: str
+    relevance_score: float
+    tags: list[str] = Field(default_factory=list)
+    why_it_matters: str
+    filter_reason: str
+    dedup_key: str
+
+
+class SignalPoolResponse(BaseModel):
+    meta: SignalPoolMeta
+    items: list[SignalPoolItem] = Field(default_factory=list)
